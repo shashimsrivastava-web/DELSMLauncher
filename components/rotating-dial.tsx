@@ -128,8 +128,8 @@ const MAIN_LINKS: DialLinkItem[] = [
   {
     id: 'daa-procedure',
     title: 'DAA procedure - YouTube',
-    url: 'https://www.youtube.com/results?search_query=DAA+procedure+Lufthansa',
-    domain: 'youtube.com',
+    url: 'https://youtu.be/w3ZMblJi6wQ?si=wtY-AbF4CvFLUWQm',
+    domain: 'youtu.be',
     category: 'Standard Operating Procedure',
     type: 'link',
     sourceDialKey: 'main',
@@ -1234,36 +1234,48 @@ export default function RotatingDial() {
         <button
           type="button"
           onClick={handleLoudspeakerClick}
-          aria-label={!isMuted ? 'Sound active. Click to mute dial audio' : 'Sound muted. Click to activate mechanical dial audio'}
-          title={!isMuted ? 'Sound ON — Click twice to mute' : 'Sound MUTED — Click to activate'}
-          className={`relative group flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl shadow-[0_8px_24px_rgba(0,0,0,0.7)] backdrop-blur-md border transition-all duration-200 cursor-pointer active:scale-95 ${
+          aria-label={!isMuted ? 'Sound active (ON). Click to mute mechanical dial audio' : 'Sound muted (OFF). Click to activate mechanical dial audio'}
+          title={!isMuted ? 'Sound is ACTIVE (ON) — Click to mute' : 'Sound is MUTED (OFF) — Click to turn ON'}
+          className={`relative group flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl shadow-[0_8px_24px_rgba(0,0,0,0.7)] backdrop-blur-md border transition-all duration-200 cursor-pointer active:scale-95 ${
             !isMuted
-              ? 'bg-gradient-to-br from-amber-500/25 via-amber-400/15 to-neutral-900/90 border-amber-400/60 shadow-[0_0_24px_rgba(245,158,11,0.35)] hover:border-amber-300 hover:shadow-[0_0_32px_rgba(245,158,11,0.5)]'
-              : 'bg-neutral-900/90 border-white/20 text-neutral-400 hover:border-white/40 hover:text-white hover:bg-neutral-800'
+              ? 'bg-gradient-to-br from-amber-500/25 via-amber-400/15 to-neutral-900/90 border-amber-400/70 shadow-[0_0_24px_rgba(245,158,11,0.4)] hover:border-amber-300 hover:shadow-[0_0_32px_rgba(245,158,11,0.55)]'
+              : 'bg-neutral-900/90 border-red-500/30 text-neutral-400 hover:border-red-400/60 hover:text-white hover:bg-neutral-800 shadow-[0_0_16px_rgba(239,68,68,0.15)]'
           }`}
         >
-          {/* Subtle ambient ripple when sound is active */}
+          {/* Ambient wave pulse when sound is active */}
           {!isMuted && (
             <span
               aria-hidden="true"
-              className="absolute inset-0 rounded-2xl border border-amber-400/40 animate-ping opacity-30 pointer-events-none"
+              className="absolute inset-0 rounded-2xl border-2 border-amber-400/50 animate-ping opacity-25 pointer-events-none"
             />
           )}
 
-          {!isMuted ? (
-            <div className="flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
-              <Volume2 className="w-6 h-6 sm:w-7 sm:h-7 drop-shadow-[0_0_10px_rgba(245,158,11,0.7)]" />
-            </div>
-          ) : (
-            <div className="flex items-center justify-center text-neutral-400 group-hover:scale-110 transition-transform">
-              <VolumeX className="w-6 h-6 sm:w-7 sm:h-7" />
-            </div>
-          )}
+          {/* Sound State Icon */}
+          <div className="flex items-center justify-center mb-0.5">
+            {!isMuted ? (
+              <Volume2 className="w-5 h-5 sm:w-6 sm:h-6 text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.8)] group-hover:scale-110 transition-transform" />
+            ) : (
+              <VolumeX className="w-5 h-5 sm:w-6 sm:h-6 text-neutral-400 group-hover:scale-110 group-hover:text-red-300 transition-transform" />
+            )}
+          </div>
 
-          {/* Active status indicator dot */}
+          {/* Clear Visual State Label Badge (ON / OFF) */}
           <span
-            className={`absolute bottom-1.5 right-1.5 w-2.5 h-2.5 rounded-full border-2 border-neutral-950 ${
-              !isMuted ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-neutral-500'
+            className={`text-[9px] sm:text-[10px] font-mono font-bold tracking-wider px-1.5 py-0.2 rounded-full border leading-tight transition-colors ${
+              !isMuted
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/50 shadow-[0_0_8px_rgba(52,211,153,0.3)]'
+                : 'bg-neutral-800 text-neutral-400 border-neutral-600'
+            }`}
+          >
+            {!isMuted ? 'ON' : 'OFF'}
+          </span>
+
+          {/* Glowing Status Indicator Dot */}
+          <span
+            className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full border border-neutral-950 ${
+              !isMuted
+                ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
+                : 'bg-red-500/80 shadow-[0_0_6px_rgba(239,68,68,0.6)]'
             }`}
           />
         </button>
