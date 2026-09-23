@@ -157,67 +157,67 @@ const DGR_LINKS: DialLinkItem[] = [
     category: 'Dangerous Goods App',
     type: 'link',
     sourceDialKey: 'dgr',
-    sourceDialTitle: 'DGR Videos and Training Page',
+    sourceDialTitle: 'DGR Videos and Training Page DIAL',
   },
   {
     id: 'dgr-easa',
     title: 'EASA: lithium batteries and other dangerous goods - YouTube',
-    url: 'https://www.youtube.com/results?search_query=EASA+lithium+batteries+and+other+dangerous+goods',
+    url: 'https://www.youtube.com/results?search_query=(842)+EASA:+lithium+batteries+and+other+dangerous+goods+-+YouTube',
     domain: 'youtube.com',
     category: 'Aviation Safety Video',
     type: 'link',
     sourceDialKey: 'dgr',
-    sourceDialTitle: 'DGR Videos and Training Page',
+    sourceDialTitle: 'DGR Videos and Training Page DIAL',
   },
   {
     id: 'dgr-lhg-short-info',
     title: 'LHG Short Info Lit Bat in Pax Baggage - YouTube',
-    url: 'https://www.youtube.com/results?search_query=LHG+Short+Info+Lit+Bat+in+Pax+Baggage',
+    url: 'https://www.youtube.com/results?search_query=(842)+LHG+Short+Info+Lit+Bat+in+Pax+Baggage+-+YouTube',
     domain: 'youtube.com',
     category: 'Passenger Baggage Training',
     type: 'link',
     sourceDialKey: 'dgr',
-    sourceDialTitle: 'DGR Videos and Training Page',
+    sourceDialTitle: 'DGR Videos and Training Page DIAL',
   },
   {
     id: 'dgr-ped-smartbag',
     title: 'Check your knowledge: #1 PED and Smartbag - YouTube',
-    url: 'https://www.youtube.com/results?search_query=Check+your+knowledge+%231+PED+and+Smartbag',
+    url: 'https://www.youtube.com/results?search_query=(842)+Check+your+knowledge:+%231+PED+and+Smartbag+-+YouTube',
     domain: 'youtube.com',
     category: 'Knowledge Check Video',
     type: 'link',
     sourceDialKey: 'dgr',
-    sourceDialTitle: 'DGR Videos and Training Page',
+    sourceDialTitle: 'DGR Videos and Training Page DIAL',
   },
   {
     id: 'dgr-lithium-hidden',
     title: 'Check your knowledge: Lithium batteries and hidden Dangerous Goods - YouTube',
-    url: 'https://www.youtube.com/results?search_query=Check+your+knowledge+Lithium+batteries+and+hidden+Dangerous+Goods',
+    url: 'https://www.youtube.com/results?search_query=Check+your+knowledge:+Lithium+batteries+and+hidden+Dangerous+Goods+-+YouTube',
     domain: 'youtube.com',
     category: 'Knowledge Check Video',
     type: 'link',
     sourceDialKey: 'dgr',
-    sourceDialTitle: 'DGR Videos and Training Page',
+    sourceDialTitle: 'DGR Videos and Training Page DIAL',
   },
   {
     id: 'dgr-operator-approval',
     title: 'Approval of the Operator - YouTube',
-    url: 'https://www.youtube.com/results?search_query=Approval+of+the+Operator+Lufthansa+Dangerous+Goods',
+    url: 'https://www.youtube.com/results?search_query=Approval+of+the+Operator+-+YouTube',
     domain: 'youtube.com',
     category: 'Dangerous Goods Procedure',
     type: 'link',
     sourceDialKey: 'dgr',
-    sourceDialTitle: 'DGR Videos and Training Page',
+    sourceDialTitle: 'DGR Videos and Training Page DIAL',
   },
   {
     id: 'dgr-wheelchair',
     title: '(361) Check Your Knowledge - Unnotified wheelchair passengers - YouTube',
-    url: 'https://www.youtube.com/results?search_query=Check+Your+Knowledge+Unnotified+wheelchair+passengers',
+    url: 'https://www.youtube.com/results?search_query=(361)+Check+Your+Knowledge+-+Unnotified+wheelchair+passengers+-+YouTube',
     domain: 'youtube.com',
     category: 'Knowledge Check Video',
     type: 'link',
     sourceDialKey: 'dgr',
-    sourceDialTitle: 'DGR Videos and Training Page',
+    sourceDialTitle: 'DGR Videos and Training Page DIAL',
   },
   {
     id: 'dgr-back-to-main',
@@ -227,7 +227,7 @@ const DGR_LINKS: DialLinkItem[] = [
     type: 'back',
     targetDial: 'main',
     sourceDialKey: 'dgr',
-    sourceDialTitle: 'DGR Videos and Training Page',
+    sourceDialTitle: 'DGR Videos and Training Page DIAL',
   },
 ];
 
@@ -730,13 +730,17 @@ export default function RotatingDial() {
   const lastWheelTime = useRef(0);
   const wheelAccumulator = useRef(0);
 
-  // Velocity tracking for physical momentum glide on finger release
+  // Velocity tracking and physics-based inertia deceleration animation
   const recentDeltas = useRef<{ dy: number; time: number }[]>([]);
-  const momentumTimeouts = useRef<NodeJS.Timeout[]>([]);
+  const momentumRafId = useRef<number | null>(null);
+  const isDecelerating = useRef(false);
 
   const clearMomentum = useCallback(() => {
-    momentumTimeouts.current.forEach((t) => clearTimeout(t));
-    momentumTimeouts.current = [];
+    if (momentumRafId.current !== null) {
+      cancelAnimationFrame(momentumRafId.current);
+      momentumRafId.current = null;
+    }
+    isDecelerating.current = false;
   }, []);
 
   const isSearchActive = searchQuery.trim().length > 0;
@@ -1034,34 +1038,62 @@ export default function RotatingDial() {
       releaseVelocity = sumDy / timeSpan;
     }
 
-    // Physical scroll momentum: if the user flicked or swiped with speed upon release,
-    // continue to gently glide the dial forward 1 to 3 steps with decaying intervals
+    // Physical inertia deceleration:
+    // If released with velocity, the rotating dial continues to coast forward in that direction
+    // under heavy rotational friction (0.91 per frame) until it smoothly settles into the ratchet detent.
     const absVel = Math.abs(releaseVelocity);
-    if (absVel > 0.45) {
-      const isDownwardFlick = releaseVelocity < 0; // finger swiped up -> dial moves down
-      // Glide 1 to 3 decaying steps depending on swipe vigor
-      const extraSteps = absVel > 1.4 ? 3 : absVel > 0.85 ? 2 : 1;
+    if (absVel > 0.28) {
+      isDecelerating.current = true;
+      let currentVelocity = releaseVelocity;
+      let accumulatedDistance = 0;
+      let lastFrameTime = performance.now();
+      const DISTANCE_PER_DETENT = 58; // Physical step threshold
+      const FRICTION = 0.905; // Natural rotary cylinder friction coefficient
 
-      // Natural progressive decay timeouts (e.g. 1st glide step at 220ms, 2nd at 520ms, 3rd at 900ms)
-      const delays = [220, 520, 890];
+      const stepDeceleration = (currentTime: number) => {
+        const dt = Math.min(32, Math.max(8, currentTime - lastFrameTime));
+        lastFrameTime = currentTime;
 
-      for (let i = 0; i < extraSteps; i++) {
-        const timeout = setTimeout(() => {
-          if (isDownwardFlick) {
+        // Apply friction decay scaled by frame delta
+        currentVelocity *= Math.pow(FRICTION, dt / 16.67);
+        accumulatedDistance += currentVelocity * dt;
+
+        // Trigger detent click step whenever accumulated distance crosses threshold
+        if (Math.abs(accumulatedDistance) >= DISTANCE_PER_DETENT) {
+          if (accumulatedDistance < 0) {
             rotateDown();
+            accumulatedDistance += DISTANCE_PER_DETENT;
           } else {
             rotateUp();
+            accumulatedDistance -= DISTANCE_PER_DETENT;
           }
-        }, delays[i]);
-        momentumTimeouts.current.push(timeout);
-      }
+        }
+
+        // Continue coasting until velocity falls below tactile threshold
+        if (Math.abs(currentVelocity) > 0.08) {
+          momentumRafId.current = requestAnimationFrame(stepDeceleration);
+        } else {
+          // Final slight nudge if lingering past halfway detent mark
+          if (Math.abs(accumulatedDistance) > DISTANCE_PER_DETENT * 0.45) {
+            if (accumulatedDistance < 0) {
+              rotateDown();
+            } else {
+              rotateUp();
+            }
+          }
+          isDecelerating.current = false;
+          momentumRafId.current = null;
+        }
+      };
+
+      momentumRafId.current = requestAnimationFrame(stepDeceleration);
     }
 
     dragAccumulator.current = 0;
     recentDeltas.current = [];
     setTimeout(() => {
       hasDragged.current = false;
-    }, 120);
+    }, 140);
   };
 
   const handleAction = (item: DialLinkItem, slotOffset: number, e: React.MouseEvent) => {
@@ -1210,8 +1242,8 @@ export default function RotatingDial() {
           />
         </button>
 
-        {/* Informative Callout Prompt on App Launch */}
-        {!hasInteractedSound && (
+        {/* Floating Prompt Bar: Only shown when audio is MUTED */}
+        {isMuted && (
           <div
             onClick={handleLoudspeakerClick}
             className="sound-prompt-pulse mt-2.5 max-w-[215px] sm:max-w-[245px] p-2.5 rounded-xl bg-neutral-900/95 border border-amber-400/50 shadow-[0_12px_28px_rgba(0,0,0,0.8),0_0_20px_rgba(245,158,11,0.2)] text-left cursor-pointer transition-all hover:border-amber-300"
@@ -1223,7 +1255,7 @@ export default function RotatingDial() {
                   Tap to Activate Sound!
                 </p>
                 <p className="text-[10px] sm:text-[11px] text-neutral-300 leading-snug mt-0.5">
-                  Hear mechanical tumbler clicks as you spin. Tap again to mute anytime.
+                  Sound is currently muted. Tap here or icon above to turn ON.
                 </p>
               </div>
             </div>
