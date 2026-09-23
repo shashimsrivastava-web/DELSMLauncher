@@ -162,8 +162,8 @@ const DGR_LINKS: DialLinkItem[] = [
   {
     id: 'dgr-easa',
     title: 'EASA: lithium batteries and other dangerous goods - YouTube',
-    url: 'https://www.youtube.com/results?search_query=(842)+EASA:+lithium+batteries+and+other+dangerous+goods+-+YouTube',
-    domain: 'youtube.com',
+    url: 'https://youtu.be/pwwdH_wNEeo?si=u3chcg2aTNmxNTpM',
+    domain: 'youtu.be',
     category: 'Aviation Safety Video',
     type: 'link',
     sourceDialKey: 'dgr',
@@ -171,9 +171,9 @@ const DGR_LINKS: DialLinkItem[] = [
   },
   {
     id: 'dgr-lhg-short-info',
-    title: 'LHG Short Info Lit Bat in Pax Baggage - YouTube',
-    url: 'https://www.youtube.com/results?search_query=(842)+LHG+Short+Info+Lit+Bat+in+Pax+Baggage+-+YouTube',
-    domain: 'youtube.com',
+    title: 'Lit Bat in Pax Baggage - LHG Short Info',
+    url: 'https://youtu.be/DlpZTktne-o?si=kK65wQGEMbrKqn6s',
+    domain: 'youtu.be',
     category: 'Passenger Baggage Training',
     type: 'link',
     sourceDialKey: 'dgr',
@@ -181,9 +181,9 @@ const DGR_LINKS: DialLinkItem[] = [
   },
   {
     id: 'dgr-ped-smartbag',
-    title: 'Check your knowledge: #1 PED and Smartbag - YouTube',
-    url: 'https://www.youtube.com/results?search_query=(842)+Check+your+knowledge:+%231+PED+and+Smartbag+-+YouTube',
-    domain: 'youtube.com',
+    title: 'Lit bat and hidden DG - Check your knowledge',
+    url: 'https://youtu.be/Or_y7V5lrLQ?si=Oa9cT60kjTzG1PjP',
+    domain: 'youtu.be',
     category: 'Knowledge Check Video',
     type: 'link',
     sourceDialKey: 'dgr',
@@ -191,9 +191,9 @@ const DGR_LINKS: DialLinkItem[] = [
   },
   {
     id: 'dgr-lithium-hidden',
-    title: 'Check your knowledge: Lithium batteries and hidden Dangerous Goods - YouTube',
-    url: 'https://www.youtube.com/results?search_query=Check+your+knowledge:+Lithium+batteries+and+hidden+Dangerous+Goods+-+YouTube',
-    domain: 'youtube.com',
+    title: 'PED and Smartbag – Check your knowledge',
+    url: 'https://youtu.be/JzmP9MvKvi0?si=ODqChAwsL9lauZeq',
+    domain: 'youtu.be',
     category: 'Knowledge Check Video',
     type: 'link',
     sourceDialKey: 'dgr',
@@ -202,8 +202,8 @@ const DGR_LINKS: DialLinkItem[] = [
   {
     id: 'dgr-operator-approval',
     title: 'Approval of the Operator - YouTube',
-    url: 'https://www.youtube.com/results?search_query=Approval+of+the+Operator+-+YouTube',
-    domain: 'youtube.com',
+    url: 'https://youtu.be/9ONqy4YPf_g?si=Ugp5Q_G22noef4MV',
+    domain: 'youtu.be',
     category: 'Dangerous Goods Procedure',
     type: 'link',
     sourceDialKey: 'dgr',
@@ -211,9 +211,9 @@ const DGR_LINKS: DialLinkItem[] = [
   },
   {
     id: 'dgr-wheelchair',
-    title: '(361) Check Your Knowledge - Unnotified wheelchair passengers - YouTube',
-    url: 'https://www.youtube.com/results?search_query=(361)+Check+Your+Knowledge+-+Unnotified+wheelchair+passengers+-+YouTube',
-    domain: 'youtube.com',
+    title: 'Unnotified wheelchair pax - Check your Knowledge',
+    url: 'https://youtu.be/gF3kISCtxXA?si=7ZLJjNPpqLwbBnT_',
+    domain: 'youtu.be',
     category: 'Knowledge Check Video',
     type: 'link',
     sourceDialKey: 'dgr',
@@ -431,6 +431,8 @@ interface SlotConfig {
   opacity: number;
   isForefront: boolean;
   isCenter: boolean;
+  boxShadow: string;
+  shadowOverlayOpacity: number;
 }
 
 const SLOT_CONFIGS: Record<number, SlotConfig> = {
@@ -442,6 +444,8 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     opacity: 0,
     isForefront: false,
     isCenter: false,
+    boxShadow: '0 32px 64px -12px rgba(0,0,0,0.92), 0 0 40px rgba(0,0,0,0.85)',
+    shadowOverlayOpacity: 0.65,
   },
   [-1]: {
     y: -235,
@@ -451,6 +455,8 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     opacity: 0.32,
     isForefront: true,
     isCenter: false,
+    boxShadow: '0 24px 52px -8px rgba(0,0,0,0.88), 0 12px 28px rgba(0,0,0,0.7)',
+    shadowOverlayOpacity: 0.45,
   },
   [0]: {
     y: -140,
@@ -460,6 +466,8 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     opacity: 0.68,
     isForefront: true,
     isCenter: false,
+    boxShadow: '0 16px 40px -6px rgba(0,0,0,0.75), 0 8px 18px rgba(0,0,0,0.5)',
+    shadowOverlayOpacity: 0.22,
   },
   [1]: {
     y: -46,
@@ -469,6 +477,8 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     opacity: 1.0,
     isForefront: true,
     isCenter: true,
+    boxShadow: '0 10px 32px -4px rgba(0,0,0,0.55), 0 0 28px rgba(56,189,248,0.22)',
+    shadowOverlayOpacity: 0,
   },
   [2]: {
     y: 46,
@@ -478,6 +488,8 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     opacity: 1.0,
     isForefront: true,
     isCenter: true,
+    boxShadow: '0 10px 32px -4px rgba(0,0,0,0.55), 0 0 28px rgba(56,189,248,0.22)',
+    shadowOverlayOpacity: 0,
   },
   [3]: {
     y: 140,
@@ -487,6 +499,8 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     opacity: 0.68,
     isForefront: true,
     isCenter: false,
+    boxShadow: '0 -16px 40px -6px rgba(0,0,0,0.75), 0 -8px 18px rgba(0,0,0,0.5)',
+    shadowOverlayOpacity: 0.22,
   },
   [4]: {
     y: 235,
@@ -496,6 +510,8 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     opacity: 0.32,
     isForefront: true,
     isCenter: false,
+    boxShadow: '0 -24px 52px -8px rgba(0,0,0,0.88), 0 -12px 28px rgba(0,0,0,0.7)',
+    shadowOverlayOpacity: 0.45,
   },
   [5]: {
     y: 360,
@@ -505,6 +521,8 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     opacity: 0,
     isForefront: false,
     isCenter: false,
+    boxShadow: '0 -32px 64px -12px rgba(0,0,0,0.92), 0 0 40px rgba(0,0,0,0.85)',
+    shadowOverlayOpacity: 0.65,
   },
 };
 
@@ -533,12 +551,11 @@ export default function RotatingDial() {
   // Web Audio Context for authentic mechanical dial clicks
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  // Subtle mobile haptic vibration feedback on snap
-  const triggerHapticFeedback = useCallback(() => {
+  // Subtle mobile haptic vibration feedback on snap or item click
+  const triggerHapticFeedback = useCallback((pattern: number | number[] = 14) => {
     try {
       if (typeof window !== 'undefined' && 'navigator' in window && typeof navigator.vibrate === 'function') {
-        // Crisp 14ms mechanical tactile pulse
-        navigator.vibrate(14);
+        navigator.vibrate(pattern);
       }
     } catch {
       // Haptics not supported or blocked by browser policy
@@ -1130,29 +1147,34 @@ export default function RotatingDial() {
 
     if (item.type === 'disabled') {
       e.preventDefault();
+      triggerHapticFeedback([10, 40, 10]); // Subtle double buzz for disabled / locked item
       showToast(`${item.title}: ${item.subtitle || 'Under Construction – No Link available at this time.'}`);
       return;
     }
 
     if (item.type === 'dial' && item.targetDial) {
       e.preventDefault();
+      triggerHapticFeedback(22); // Satisfying tactile buzz for dial drill-down
       switchDial(item.targetDial);
       return;
     }
 
     if (item.type === 'back' && item.targetDial) {
       e.preventDefault();
+      triggerHapticFeedback(18);
       switchDial(item.targetDial);
       return;
     }
 
     if (item.type === 'back') {
       e.preventDefault();
+      triggerHapticFeedback(18);
       switchDial('main');
       return;
     }
 
     // Direct link opens natively via href & target="_blank"
+    triggerHapticFeedback(25); // Confirmatory haptic pulse on link launch
   };
 
   const getItemTransformData = (index: number) => {
@@ -1174,6 +1196,8 @@ export default function RotatingDial() {
         opacity: config.opacity,
         isForefront: config.isForefront,
         isCenter: config.isCenter,
+        boxShadow: config.boxShadow,
+        shadowOverlayOpacity: config.shadowOverlayOpacity,
         visible: true,
       };
     }
@@ -1188,6 +1212,8 @@ export default function RotatingDial() {
       opacity: 0,
       isForefront: false,
       isCenter: false,
+      boxShadow: '0 0 0 rgba(0,0,0,0)',
+      shadowOverlayOpacity: 0.85,
       visible: false,
     };
   };
@@ -1467,11 +1493,15 @@ export default function RotatingDial() {
                 style={{
                   transform: `translate3d(0, ${data.y}px, ${data.z}px) rotateX(${data.rotateX}deg) scale(${data.scale})`,
                   opacity: data.opacity,
+                  boxShadow: data.boxShadow,
+                  filter: data.isCenter
+                    ? 'none'
+                    : `drop-shadow(0 ${data.d < 0 ? '16px' : '-16px'} 20px rgba(0,0,0,0.65))`,
                   pointerEvents: data.isForefront ? 'auto' : 'none',
                   visibility: data.visible ? 'visible' : 'hidden',
-                  willChange: 'transform, opacity',
+                  willChange: 'transform, opacity, box-shadow, filter',
                   transition:
-                    'transform 580ms cubic-bezier(0.2, 0.95, 0.35, 1), opacity 500ms cubic-bezier(0.2, 0.95, 0.35, 1), background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease',
+                    'transform 580ms cubic-bezier(0.2, 0.95, 0.35, 1), opacity 500ms cubic-bezier(0.2, 0.95, 0.35, 1), box-shadow 580ms cubic-bezier(0.2, 0.95, 0.35, 1), filter 580ms cubic-bezier(0.2, 0.95, 0.35, 1), background-color 200ms ease, border-color 200ms ease',
                 }}
                 className={`absolute w-[88vw] max-w-[460px] h-[78px] px-6 py-3.5 rounded-xl flex items-center justify-between group transition-all outline-none touch-manipulation active:scale-[0.98] ${
                   !isClickable ? 'cursor-not-allowed' : 'cursor-pointer'
@@ -1485,6 +1515,15 @@ export default function RotatingDial() {
                     : 'bg-neutral-900/40 text-neutral-300 border border-white/10 hover:border-white/30 hover:opacity-80 focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black'
                 }`}
               >
+                {/* Subtle perspective depth shadow overlay as item tilts into background */}
+                {data.shadowOverlayOpacity > 0 && (
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-0 rounded-xl bg-gradient-to-b from-black/80 via-black/40 to-black/80 pointer-events-none transition-opacity duration-500"
+                    style={{ opacity: data.shadowOverlayOpacity }}
+                  />
+                )}
+
                 {/* Subtle illuminated accent bar on the left edge for center item */}
                 {data.isCenter && (
                   <div
