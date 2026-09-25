@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
-import { ArrowUpRight, ChevronRight, ArrowLeft, Clock, Search, X, Layers, Volume2, VolumeX } from 'lucide-react';
+import { ArrowUpRight, ChevronRight, ArrowLeft, Clock, Search, X, Layers, Volume2, VolumeX, RotateCw, RotateCcw, Check } from 'lucide-react';
 
 export type LinkItemType = 'link' | 'dial' | 'disabled' | 'back';
 export type DialKey = 'main' | 'dgr' | 'ops' | 'll';
@@ -526,6 +526,78 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
   },
 };
 
+// Continuous Hermite-interpolated 3D slot configurations for physical inertia and fluid analog glide
+function getContinuousSlotConfig(d: number) {
+  if (d <= -2) {
+    const extra = -2 - d;
+    return {
+      y: -360 - extra * 125,
+      z: -210 - extra * 70,
+      rotateX: Math.min(85, 58 + extra * 15),
+      scale: Math.max(0.4, 0.68 - extra * 0.1),
+      opacity: 0,
+      isForefront: false,
+      isCenter: false,
+      boxShadow: 'none',
+      shadowOverlayOpacity: 0.85,
+      visible: false,
+    };
+  }
+  if (d >= 5) {
+    const extra = d - 5;
+    return {
+      y: 360 + extra * 125,
+      z: -210 - extra * 70,
+      rotateX: Math.max(-85, -58 - extra * 15),
+      scale: Math.max(0.4, 0.68 - extra * 0.1),
+      opacity: 0,
+      isForefront: false,
+      isCenter: false,
+      boxShadow: 'none',
+      shadowOverlayOpacity: 0.85,
+      visible: false,
+    };
+  }
+
+  const baseSlot = Math.floor(d);
+  const frac = d - baseSlot;
+  const c0 = SLOT_CONFIGS[baseSlot];
+  const c1 = SLOT_CONFIGS[baseSlot + 1] || c0;
+
+  // Smooth Hermite cubic interpolation for zero velocity derivative jitter at slot boundaries
+  const t = frac * frac * (3 - 2 * frac);
+
+  const y = c0.y + (c1.y - c0.y) * t;
+  const z = c0.z + (c1.z - c0.z) * t;
+  const rotateX = c0.rotateX + (c1.rotateX - c0.rotateX) * t;
+  const scale = c0.scale + (c1.scale - c0.scale) * t;
+  const opacity = c0.opacity + (c1.opacity - c0.opacity) * t;
+  const shadowOverlayOpacity =
+    c0.shadowOverlayOpacity + (c1.shadowOverlayOpacity - c0.shadowOverlayOpacity) * t;
+
+  const isCenter = Math.abs(d - 1.0) < 0.45 || Math.abs(d - 2.0) < 0.45;
+  const isForefront = d >= -0.5 && d <= 4.5;
+
+  const boxShadow = isCenter
+    ? '0 10px 32px -4px rgba(0,0,0,0.55), 0 0 28px rgba(56,189,248,0.22)'
+    : d < 1.5
+    ? '0 16px 40px -6px rgba(0,0,0,0.75), 0 8px 18px rgba(0,0,0,0.5)'
+    : '0 -16px 40px -6px rgba(0,0,0,0.75), 0 -8px 18px rgba(0,0,0,0.5)';
+
+  return {
+    y,
+    z,
+    rotateX,
+    scale,
+    opacity,
+    isForefront,
+    isCenter,
+    boxShadow,
+    shadowOverlayOpacity,
+    visible: opacity > 0.01,
+  };
+}
+
 // Synthesizes a high-fidelity 16-bit PCM WAV mechanical ratchet click data URL for instant HTML5 fallback
 function createClickWavUrl(): string {
   if (typeof window === 'undefined') return '';
@@ -571,13 +643,587 @@ function createClickWavUrl(): string {
   }
 }
 
+export type SoundThemeId =
+  | 'mechanical'
+  | 'avionics'
+  | 'cyberpunk'
+  | 'camera'
+  | 'woodblock'
+  | 'sonar'
+  | 'bubble'
+  | 'arcade'
+  | 'vault'
+  | 'crystal';
+
+export interface SoundTheme {
+  id: SoundThemeId;
+  name: string;
+  shortLabel: string;
+  icon: string;
+  description: string;
+  clockwiseName: string;
+  anticlockwiseName: string;
+}
+
+export const SOUND_THEMES: SoundTheme[] = [
+  {
+    id: 'mechanical',
+    name: 'Mechanical Ratchet (Default)',
+    shortLabel: 'Mechanical',
+    icon: '⚙️',
+    description: 'Crisp metallic ratchet snap with hollow chassis body resonance',
+    clockwiseName: 'Clockwise Snap (1480Hz)',
+    anticlockwiseName: 'Anticlockwise Slip (1780Hz)',
+  },
+  {
+    id: 'avionics',
+    name: 'Cockpit Avionics Relay',
+    shortLabel: 'Avionics',
+    icon: '✈️',
+    description: 'Aeronautical cockpit magnetic relay switch with tactile latch pulse',
+    clockwiseName: 'Engage Relay (1100Hz punch)',
+    anticlockwiseName: 'Release Latch (1350Hz tick)',
+  },
+  {
+    id: 'cyberpunk',
+    name: 'Cyberpunk Synth Hologram',
+    shortLabel: 'Cyberpunk',
+    icon: '⚡',
+    description: 'Futuristic sci-fi laser detent blip and resonant harmonic pip',
+    clockwiseName: 'Step Down Pip (2400Hz → 480Hz)',
+    anticlockwiseName: 'Step Up Chirp (420Hz → 2800Hz)',
+  },
+  {
+    id: 'camera',
+    name: 'Camera Shutter & Iris',
+    shortLabel: 'Shutter',
+    icon: '📸',
+    description: 'Precision mechanical leaf aperture click and winder spring',
+    clockwiseName: 'Leaf Snap (1800Hz dual)',
+    anticlockwiseName: 'Cocking Ratchet (Triple pip)',
+  },
+  {
+    id: 'woodblock',
+    name: 'Acoustic Woodblock Knock',
+    shortLabel: 'Woodblock',
+    icon: '🪵',
+    description: 'Warm organic hollow oak & maple percussion detent knock',
+    clockwiseName: 'Deep Oak Knock (480Hz)',
+    anticlockwiseName: 'Bright Maple Tap (720Hz)',
+  },
+  {
+    id: 'sonar',
+    name: 'Sonar Radar Ping',
+    shortLabel: 'Sonar',
+    icon: '🌊',
+    description: 'Ethereal underwater acoustic radar echo with Doppler resonance',
+    clockwiseName: 'Deep Sub Ping (960Hz → 880Hz)',
+    anticlockwiseName: 'High Radar Echo (1240Hz → 1320Hz)',
+  },
+  {
+    id: 'bubble',
+    name: 'Water Droplet & Bubble',
+    shortLabel: 'Bubble',
+    icon: '💧',
+    description: 'Liquid surface bubble pop and dynamic acoustic water bead',
+    clockwiseName: 'Droplet Plop (320Hz → 1100Hz)',
+    anticlockwiseName: 'Splash Bead (650Hz → 1850Hz)',
+  },
+  {
+    id: 'arcade',
+    name: '8-Bit Retro Arcade Pip',
+    shortLabel: '8-Bit Pip',
+    icon: '👾',
+    description: 'Vintage chiptune DAC square wave arpeggio step blip',
+    clockwiseName: 'Step Down (880Hz → 587Hz)',
+    anticlockwiseName: 'Step Up (587Hz → 1174Hz)',
+  },
+  {
+    id: 'vault',
+    name: 'Heavy Safe Vault Tumbler',
+    shortLabel: 'Vault Lock',
+    icon: '🔒',
+    description: 'Heavy steel combination tumbler clunk with bolt slot friction',
+    clockwiseName: 'Tumbler Drop (110Hz + 950Hz)',
+    anticlockwiseName: 'Reverse Roll (1400Hz scrape)',
+  },
+  {
+    id: 'crystal',
+    name: 'Crystal Glass Harmonic',
+    shortLabel: 'Crystal Bell',
+    icon: '✨',
+    description: 'Pure crystalline harmonic bell vibration and glass chime tone',
+    clockwiseName: 'A6 Harmonic (1760Hz)',
+    anticlockwiseName: 'C7 Bright Bell (2093Hz)',
+  },
+];
+
+// Shared pre-computed noise buffer cache to eliminate memory allocation and GC stutter during rapid rotary clicks
+let sharedNoiseBuffer: AudioBuffer | null = null;
+let sharedNoiseSampleRate = 0;
+
+function getSharedNoiseBuffer(ctx: AudioContext): AudioBuffer {
+  if (sharedNoiseBuffer && sharedNoiseSampleRate === ctx.sampleRate) {
+    return sharedNoiseBuffer;
+  }
+  const bufferSize = Math.floor(ctx.sampleRate * 0.035);
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.28));
+  }
+  sharedNoiseBuffer = buffer;
+  sharedNoiseSampleRate = ctx.sampleRate;
+  return buffer;
+}
+
+// Rich Web Audio synthesis for each of the 10 sound themes with distinct directional turns
+function renderSoundTheme(ctx: AudioContext, themeId: SoundThemeId, direction: 'up' | 'down') {
+  const now = ctx.currentTime;
+  const isUp = direction === 'up';
+
+  switch (themeId) {
+    case 'mechanical': {
+      // 1. Mechanical Ratchet (Default)
+      const masterGain = ctx.createGain();
+      masterGain.gain.setValueAtTime(0.95, now);
+      masterGain.connect(ctx.destination);
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const baseFreq = isUp ? 1780 : 1480;
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(baseFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(isUp ? 210 : 160, now + 0.042);
+
+      gain.gain.setValueAtTime(0.01, now);
+      gain.gain.linearRampToValueAtTime(0.65, now + 0.002);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.042);
+
+      const whiteNoise = ctx.createBufferSource();
+      whiteNoise.buffer = getSharedNoiseBuffer(ctx);
+      const noiseFilter = ctx.createBiquadFilter();
+      noiseFilter.type = 'bandpass';
+      noiseFilter.frequency.setValueAtTime(isUp ? 3200 : 2600, now);
+      noiseFilter.Q.setValueAtTime(2.8, now);
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.45, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.026);
+
+      const lowOsc = ctx.createOscillator();
+      const lowGain = ctx.createGain();
+      lowOsc.type = 'sine';
+      lowOsc.frequency.setValueAtTime(isUp ? 250 : 220, now);
+      lowOsc.frequency.exponentialRampToValueAtTime(isUp ? 65 : 50, now + 0.06);
+      lowGain.gain.setValueAtTime(0.38, now);
+      lowGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+
+      osc.connect(gain);
+      gain.connect(masterGain);
+      whiteNoise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(masterGain);
+      lowOsc.connect(lowGain);
+      lowGain.connect(masterGain);
+
+      osc.start(now);
+      whiteNoise.start(now);
+      lowOsc.start(now);
+      osc.stop(now + 0.045);
+      whiteNoise.stop(now + 0.028);
+      lowOsc.stop(now + 0.065);
+      break;
+    }
+
+    case 'avionics': {
+      // 2. Cockpit Avionics Magnetic Relay Switch
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.92, now);
+      master.connect(ctx.destination);
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = isUp ? 'triangle' : 'square';
+      osc.frequency.setValueAtTime(isUp ? 1350 : 1100, now);
+      osc.frequency.exponentialRampToValueAtTime(isUp ? 420 : 280, now + 0.038);
+      gain.gain.setValueAtTime(0.01, now);
+      gain.gain.linearRampToValueAtTime(isUp ? 0.42 : 0.35, now + 0.001);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.038);
+
+      const chime = ctx.createOscillator();
+      const chimeGain = ctx.createGain();
+      chime.type = 'sine';
+      chime.frequency.setValueAtTime(isUp ? 3800 : 2900, now);
+      chimeGain.gain.setValueAtTime(0.18, now);
+      chimeGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.025);
+
+      const thump = ctx.createOscillator();
+      const thumpGain = ctx.createGain();
+      thump.type = 'sine';
+      thump.frequency.setValueAtTime(isUp ? 115 : 75, now);
+      thumpGain.gain.setValueAtTime(0.55, now);
+      thumpGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+
+      osc.connect(gain);
+      gain.connect(master);
+      chime.connect(chimeGain);
+      chimeGain.connect(master);
+      thump.connect(thumpGain);
+      thumpGain.connect(master);
+
+      osc.start(now);
+      chime.start(now);
+      thump.start(now);
+      osc.stop(now + 0.04);
+      chime.stop(now + 0.028);
+      thump.stop(now + 0.055);
+      break;
+    }
+
+    case 'cyberpunk': {
+      // 3. Cyberpunk Synth Hologram
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.88, now);
+      master.connect(ctx.destination);
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      if (isUp) {
+        osc.frequency.setValueAtTime(420, now);
+        osc.frequency.exponentialRampToValueAtTime(2800, now + 0.038);
+      } else {
+        osc.frequency.setValueAtTime(2400, now);
+        osc.frequency.exponentialRampToValueAtTime(480, now + 0.04);
+      }
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(isUp ? 2400 : 1600, now);
+      filter.Q.setValueAtTime(3.8, now);
+
+      gain.gain.setValueAtTime(0.01, now);
+      gain.gain.linearRampToValueAtTime(0.48, now + 0.002);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.042);
+
+      const shimmer = ctx.createOscillator();
+      const shimmerGain = ctx.createGain();
+      shimmer.type = 'sine';
+      shimmer.frequency.setValueAtTime(isUp ? 3600 : 850, now);
+      shimmerGain.gain.setValueAtTime(0.22, now);
+      shimmerGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.035);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(master);
+      shimmer.connect(shimmerGain);
+      shimmerGain.connect(master);
+
+      osc.start(now);
+      shimmer.start(now);
+      osc.stop(now + 0.045);
+      shimmer.stop(now + 0.038);
+      break;
+    }
+
+    case 'camera': {
+      // 4. Camera Shutter & Iris Blade
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.95, now);
+      master.connect(ctx.destination);
+
+      if (!isUp) {
+        const click1 = ctx.createOscillator();
+        const click1Gain = ctx.createGain();
+        click1.type = 'triangle';
+        click1.frequency.setValueAtTime(1800, now);
+        click1.frequency.exponentialRampToValueAtTime(350, now + 0.015);
+        click1Gain.gain.setValueAtTime(0.55, now);
+        click1Gain.gain.exponentialRampToValueAtTime(0.001, now + 0.016);
+
+        const click2 = ctx.createOscillator();
+        const click2Gain = ctx.createGain();
+        click2.type = 'triangle';
+        click2.frequency.setValueAtTime(2600, now + 0.018);
+        click2.frequency.exponentialRampToValueAtTime(500, now + 0.034);
+        click2Gain.gain.setValueAtTime(0.001, now);
+        click2Gain.gain.setValueAtTime(0.5, now + 0.018);
+        click2Gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.035);
+
+        click1.connect(click1Gain);
+        click1Gain.connect(master);
+        click2.connect(click2Gain);
+        click2Gain.connect(master);
+
+        click1.start(now);
+        click2.start(now + 0.018);
+        click1.stop(now + 0.018);
+        click2.stop(now + 0.038);
+      } else {
+        [0, 0.012, 0.024].forEach((delay, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(2200 + idx * 450, now + delay);
+          osc.frequency.exponentialRampToValueAtTime(800, now + delay + 0.01);
+          gain.gain.setValueAtTime(0.42 - idx * 0.06, now + delay);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.01);
+          osc.connect(gain);
+          gain.connect(master);
+          osc.start(now + delay);
+          osc.stop(now + delay + 0.012);
+        });
+      }
+      break;
+    }
+
+    case 'woodblock': {
+      // 5. Acoustic Woodblock Knock
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.95, now);
+      master.connect(ctx.destination);
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      const freq = isUp ? 740 : 480;
+      osc.frequency.setValueAtTime(freq, now);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.72, now + 0.05);
+
+      gain.gain.setValueAtTime(0.01, now);
+      gain.gain.linearRampToValueAtTime(0.72, now + 0.001);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + (isUp ? 0.045 : 0.055));
+
+      const harm = ctx.createOscillator();
+      const harmGain = ctx.createGain();
+      harm.type = 'sine';
+      harm.frequency.setValueAtTime(freq * (isUp ? 2.0 : 0.5), now);
+      harmGain.gain.setValueAtTime(0.35, now);
+      harmGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.035);
+
+      const tap = ctx.createOscillator();
+      const tapGain = ctx.createGain();
+      tap.type = 'triangle';
+      tap.frequency.setValueAtTime(isUp ? 2600 : 1800, now);
+      tapGain.gain.setValueAtTime(0.35, now);
+      tapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.008);
+
+      osc.connect(gain);
+      gain.connect(master);
+      harm.connect(harmGain);
+      harmGain.connect(master);
+      tap.connect(tapGain);
+      tapGain.connect(master);
+
+      osc.start(now);
+      harm.start(now);
+      tap.start(now);
+      osc.stop(now + 0.06);
+      harm.stop(now + 0.04);
+      tap.stop(now + 0.01);
+      break;
+    }
+
+    case 'sonar': {
+      // 6. Sonar Radar Ping
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.85, now);
+      master.connect(ctx.destination);
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      if (isUp) {
+        osc.frequency.setValueAtTime(1240, now);
+        osc.frequency.linearRampToValueAtTime(1320, now + 0.07);
+      } else {
+        osc.frequency.setValueAtTime(960, now);
+        osc.frequency.linearRampToValueAtTime(880, now + 0.075);
+      }
+
+      gain.gain.setValueAtTime(0.01, now);
+      gain.gain.linearRampToValueAtTime(0.68, now + 0.003);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + (isUp ? 0.07 : 0.08));
+
+      const echo = ctx.createOscillator();
+      const echoGain = ctx.createGain();
+      echo.type = 'sine';
+      echo.frequency.setValueAtTime(isUp ? 2480 : 440, now);
+      echoGain.gain.setValueAtTime(0.2, now);
+      echoGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+
+      osc.connect(gain);
+      gain.connect(master);
+      echo.connect(echoGain);
+      echoGain.connect(master);
+
+      osc.start(now);
+      echo.start(now);
+      osc.stop(now + 0.085);
+      echo.stop(now + 0.065);
+      break;
+    }
+
+    case 'bubble': {
+      // 7. Water Droplet & Bubble
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.92, now);
+      master.connect(ctx.destination);
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      if (isUp) {
+        osc.frequency.setValueAtTime(680, now);
+        osc.frequency.exponentialRampToValueAtTime(1950, now + 0.032);
+      } else {
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(1100, now + 0.036);
+      }
+
+      gain.gain.setValueAtTime(0.01, now);
+      gain.gain.linearRampToValueAtTime(0.65, now + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.038);
+
+      osc.connect(gain);
+      gain.connect(master);
+      osc.start(now);
+      osc.stop(now + 0.04);
+      break;
+    }
+
+    case 'arcade': {
+      // 8. 8-Bit Retro Arcade Pip
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.78, now);
+      master.connect(ctx.destination);
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      if (isUp) {
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.setValueAtTime(1174.66, now + 0.018); // D6
+      } else {
+        osc.frequency.setValueAtTime(880.0, now); // A5
+        osc.frequency.setValueAtTime(587.33, now + 0.018); // D5
+      }
+
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.setValueAtTime(0.35, now + 0.035);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.042);
+
+      osc.connect(gain);
+      gain.connect(master);
+      osc.start(now);
+      osc.stop(now + 0.045);
+      break;
+    }
+
+    case 'vault': {
+      // 9. Heavy Safe Vault Tumbler
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.95, now);
+      master.connect(ctx.destination);
+
+      const thud = ctx.createOscillator();
+      const thudGain = ctx.createGain();
+      thud.type = 'sine';
+      thud.frequency.setValueAtTime(isUp ? 145 : 110, now);
+      thud.frequency.exponentialRampToValueAtTime(45, now + 0.06);
+      thudGain.gain.setValueAtTime(0.65, now);
+      thudGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.065);
+
+      const click = ctx.createOscillator();
+      const clickGain = ctx.createGain();
+      click.type = 'triangle';
+      click.frequency.setValueAtTime(isUp ? 1350 : 950, now);
+      click.frequency.exponentialRampToValueAtTime(180, now + 0.028);
+      clickGain.gain.setValueAtTime(0.48, now);
+      clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+
+      thud.connect(thudGain);
+      thudGain.connect(master);
+      click.connect(clickGain);
+      clickGain.connect(master);
+
+      thud.start(now);
+      click.start(now);
+      thud.stop(now + 0.07);
+      click.stop(now + 0.035);
+      break;
+    }
+
+    case 'crystal': {
+      // 10. Crystal Glass Harmonic
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.85, now);
+      master.connect(ctx.destination);
+
+      const f1 = isUp ? 2093 : 1760; // C7 or A6
+      const f2 = isUp ? 4186 : 3520; // C8 or A7
+
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(f1, now);
+      gain1.gain.setValueAtTime(0.01, now);
+      gain1.gain.linearRampToValueAtTime(0.55, now + 0.002);
+      gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.085);
+
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(f2, now);
+      gain2.gain.setValueAtTime(0.01, now);
+      gain2.gain.linearRampToValueAtTime(0.28, now + 0.002);
+      gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+
+      osc1.connect(gain1);
+      gain1.connect(master);
+      osc2.connect(gain2);
+      gain2.connect(master);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 0.09);
+      osc2.stop(now + 0.065);
+      break;
+    }
+  }
+}
+
 export default function RotatingDial() {
   const [activeDialKey, setActiveDialKey] = useState<DialKey>('main');
   const [searchQuery, setSearchQuery] = useState('');
-  const [step, setStep] = useState(0);
+  const [visualOffset, setVisualOffset] = useState(0);
+  const step = Math.round(visualOffset);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false); // Enabled by default on app launch
   const [hasInteractedSound, setHasInteractedSound] = useState(false); // Controls launch prompt visibility
+
+  // 10 Dial Sound Themes management
+  const [selectedSoundThemeId, setSelectedSoundThemeId] = useState<SoundThemeId>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('delsm_dial_sound_theme');
+        if (saved && SOUND_THEMES.some((t) => t.id === saved)) {
+          return saved as SoundThemeId;
+        }
+      } catch {
+        // localStorage not available
+      }
+    }
+    return 'mechanical';
+  });
+  const [isSoundSelectorOpen, setIsSoundSelectorOpen] = useState(false);
+  const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const didLongPressRef = useRef(false);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const currentSoundTheme = useMemo(() => {
+    return SOUND_THEMES.find((t) => t.id === selectedSoundThemeId) || SOUND_THEMES[0];
+  }, [selectedSoundThemeId]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -655,90 +1301,20 @@ export default function RotatingDial() {
     }
   }, []);
 
-  // Play realistic mechanical dial click sound with HIGH volume output
-  const playMechanicalClick = useCallback(
-    (direction: 'up' | 'down' = 'down') => {
+  // Play selected dial sound with directional variation (clockwise / anticlockwise)
+  const playDialSound = useCallback(
+    (direction: 'up' | 'down' = 'down', overrideThemeId?: SoundThemeId) => {
       // Fire haptic vibration synchronously on snap
       triggerHapticFeedback();
 
-      if (isMuted) return;
+      // If a specific theme is explicitly being tested/previewed, ensure sound is unmuted
+      if (overrideThemeId) {
+        setIsMuted(false);
+      } else if (isMuted) {
+        return;
+      }
 
-      const renderWebAudioClick = (ctx: AudioContext) => {
-        try {
-          const now = ctx.currentTime;
-
-          // Master output volume set to HIGH (0.95)
-          const masterGain = ctx.createGain();
-          masterGain.gain.setValueAtTime(0.95, now);
-          masterGain.connect(ctx.destination);
-
-          // 1. Mechanical metallic "snap" transient oscillator (loud crisp impact)
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-
-          // Slightly different pitch for up vs down rotation, mimicking ratchet teeth
-          const baseFreq = direction === 'down' ? 1480 : 1720;
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(baseFreq, now);
-          osc.frequency.exponentialRampToValueAtTime(160, now + 0.042);
-
-          // High volume envelope for prominent mechanical presence
-          gain.gain.setValueAtTime(0.01, now);
-          gain.gain.linearRampToValueAtTime(0.65, now + 0.002);
-          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.042);
-
-          // 2. High-frequency friction noise burst (mechanical detent friction)
-          const bufferSize = Math.floor(ctx.sampleRate * 0.026);
-          const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-          const output = noiseBuffer.getChannelData(0);
-          for (let i = 0; i < bufferSize; i++) {
-            output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.28));
-          }
-
-          const whiteNoise = ctx.createBufferSource();
-          whiteNoise.buffer = noiseBuffer;
-
-          const noiseFilter = ctx.createBiquadFilter();
-          noiseFilter.type = 'bandpass';
-          noiseFilter.frequency.setValueAtTime(2600, now);
-          noiseFilter.Q.setValueAtTime(2.8, now);
-
-          const noiseGain = ctx.createGain();
-          noiseGain.gain.setValueAtTime(0.45, now);
-          noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.026);
-
-          // 3. Low-frequency hollow body resonance (heavy rotary drum chassis)
-          const lowOsc = ctx.createOscillator();
-          const lowGain = ctx.createGain();
-          lowOsc.type = 'sine';
-          lowOsc.frequency.setValueAtTime(220, now);
-          lowOsc.frequency.exponentialRampToValueAtTime(50, now + 0.06);
-
-          lowGain.gain.setValueAtTime(0.38, now);
-          lowGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
-
-          // Connect components into masterGain
-          osc.connect(gain);
-          gain.connect(masterGain);
-
-          whiteNoise.connect(noiseFilter);
-          noiseFilter.connect(noiseGain);
-          noiseGain.connect(masterGain);
-
-          lowOsc.connect(lowGain);
-          lowGain.connect(masterGain);
-
-          osc.start(now);
-          whiteNoise.start(now);
-          lowOsc.start(now);
-
-          osc.stop(now + 0.045);
-          whiteNoise.stop(now + 0.028);
-          lowOsc.stop(now + 0.065);
-        } catch {
-          playFallbackAudio();
-        }
-      };
+      const themeIdToPlay = overrideThemeId || selectedSoundThemeId;
 
       try {
         const AudioCtx =
@@ -756,13 +1332,13 @@ export default function RotatingDial() {
         const ctx = audioCtxRef.current;
 
         if (ctx.state === 'running') {
-          renderWebAudioClick(ctx);
+          renderSoundTheme(ctx, themeIdToPlay, direction);
         } else {
           // If suspended due to browser policy, resume and play as soon as active
           ctx
             .resume()
             .then(() => {
-              renderWebAudioClick(ctx);
+              renderSoundTheme(ctx, themeIdToPlay, direction);
             })
             .catch(() => {
               playFallbackAudio();
@@ -774,8 +1350,68 @@ export default function RotatingDial() {
         playFallbackAudio();
       }
     },
-    [isMuted, triggerHapticFeedback, playFallbackAudio]
+    [isMuted, triggerHapticFeedback, playFallbackAudio, selectedSoundThemeId]
   );
+
+  // Backward compatibility alias so all snap/step rotations call playDialSound
+  const playMechanicalClick = playDialSound;
+
+  // Cycle to next sound theme or set a specific theme - activates sound and ensures unmuted state
+  const cycleSoundTheme = useCallback(
+    (targetThemeId?: SoundThemeId, autoReturn = false) => {
+      ensureAudioUnlocked();
+      // Activating sound when a sound profile is selected
+      setIsMuted(false);
+      setHasInteractedSound(true);
+
+      let nextTheme: SoundTheme;
+      if (targetThemeId) {
+        nextTheme = SOUND_THEMES.find((t) => t.id === targetThemeId) || SOUND_THEMES[0];
+      } else {
+        const currentIndex = SOUND_THEMES.findIndex((t) => t.id === selectedSoundThemeId);
+        const nextIndex = (currentIndex + 1) % SOUND_THEMES.length;
+        nextTheme = SOUND_THEMES[nextIndex];
+      }
+
+      setSelectedSoundThemeId(nextTheme.id);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('delsm_dial_sound_theme', nextTheme.id);
+        } catch {
+          // localStorage disabled
+        }
+      }
+
+      triggerHapticFeedback([25, 45, 25]);
+      showToast(`${nextTheme.icon} Sound Activated: ${nextTheme.name} 🔊`);
+
+      // Play immediate demonstration: clockwise then anticlockwise
+      setTimeout(() => {
+        playDialSound('down', nextTheme.id);
+      }, 30);
+      setTimeout(() => {
+        playDialSound('up', nextTheme.id);
+      }, 160);
+
+      if (autoReturn) {
+        setIsSoundSelectorOpen(false);
+      }
+    },
+    [ensureAudioUnlocked, selectedSoundThemeId, triggerHapticFeedback, showToast, playDialSound]
+  );
+
+  // Handle returning from the sound selector to the app main interface with guaranteed sound activation
+  const handleReturnFromSoundSelector = useCallback(() => {
+    ensureAudioUnlocked();
+    setIsMuted(false);
+    setHasInteractedSound(true);
+    setIsSoundSelectorOpen(false);
+
+    // Play immediate detent audio feedback to confirm active sound on returning to dial
+    setTimeout(() => {
+      playDialSound('down');
+    }, 45);
+  }, [ensureAudioUnlocked, playDialSound]);
 
   // Force sound on initial launch and unlock audio context across all initial user interaction vectors
   useEffect(() => {
@@ -821,7 +1457,7 @@ export default function RotatingDial() {
         if (ctx.state === 'running' && !hasAutoWoken) {
           hasAutoWoken = true;
           // Successfully allowed by browser: force initial crisp ratchet sound!
-          playMechanicalClick('down');
+          playDialSound('down');
         }
       } catch {
         // Browser autoplay policy holds audio until first interaction
@@ -864,12 +1500,71 @@ export default function RotatingDial() {
     return () => {
       cleanup();
     };
-  }, [playMechanicalClick, ensureAudioUnlocked, playFallbackAudio]);
+  }, [playDialSound, ensureAudioUnlocked, playFallbackAudio]);
 
-  // Explicit user activation from the top-right loudspeaker button
+  // Touch long-press start (mobile)
+  const handleLoudspeakerTouchStart = (e: React.TouchEvent) => {
+    didLongPressRef.current = false;
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+    }
+
+    longPressTimeoutRef.current = setTimeout(() => {
+      didLongPressRef.current = true;
+      triggerHapticFeedback([40, 50, 40]);
+      setIsSoundSelectorOpen(true);
+      cycleSoundTheme();
+    }, 450); // 450ms long press threshold
+  };
+
+  const handleLoudspeakerTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPosRef.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+    if (dx > 12 || dy > 12) {
+      if (longPressTimeoutRef.current) {
+        clearTimeout(longPressTimeoutRef.current);
+        longPressTimeoutRef.current = null;
+      }
+    }
+  };
+
+  const handleLoudspeakerTouchEnd = (e: React.TouchEvent) => {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+    if (didLongPressRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      didLongPressRef.current = false;
+    }
+  };
+
+  // Double click (desktop / mouse)
+  const handleLoudspeakerDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsSoundSelectorOpen(true);
+    cycleSoundTheme();
+  };
+
+  // Single click: Toggle mute/unmute or unlock
   const handleLoudspeakerClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+
+      // If this was part of a double-click gesture (detail === 2), delegate to double click
+      if (e.detail === 2) {
+        setIsSoundSelectorOpen(true);
+        cycleSoundTheme();
+        return;
+      }
+
       setHasInteractedSound(true);
 
       const isContextSuspended =
@@ -877,45 +1572,19 @@ export default function RotatingDial() {
 
       // If user clicked the button while muted OR if browser had suspended the audio context on first run
       if (isMuted || isContextSuspended) {
-        // Unmute and immediately wake audio engine
         ensureAudioUnlocked();
         setIsMuted(false);
-        showToast('Mechanical Dial Sound: ON 🔊');
-        // Play an immediate sample click so the user immediately hears it working
+        showToast(`Sound: ON 🔊 (${currentSoundTheme.name})`);
         setTimeout(() => {
-          playMechanicalClick('down');
+          playDialSound('down');
         }, 30);
       } else {
-        // Only mute if already active and running
         setIsMuted(true);
-        showToast('Mechanical Dial Sound: MUTED 🔇 (Click again to turn ON)');
+        showToast('Sound: MUTED 🔇 (Click again to turn ON)');
       }
     },
-    [isMuted, ensureAudioUnlocked, playMechanicalClick, showToast]
+    [isMuted, ensureAudioUnlocked, playDialSound, showToast, currentSoundTheme, cycleSoundTheme]
   );
-
-  // Interaction tracking for smooth, controlled drag, momentum glide, and wheel
-  const isPointerDown = useRef(false);
-  const startY = useRef(0);
-  const lastY = useRef(0);
-  const dragAccumulator = useRef(0);
-  const lastStepTime = useRef(0);
-  const hasDragged = useRef(false);
-  const lastWheelTime = useRef(0);
-  const wheelAccumulator = useRef(0);
-
-  // Velocity tracking and physics-based inertia deceleration animation
-  const recentDeltas = useRef<{ dy: number; time: number }[]>([]);
-  const momentumRafId = useRef<number | null>(null);
-  const isDecelerating = useRef(false);
-
-  const clearMomentum = useCallback(() => {
-    if (momentumRafId.current !== null) {
-      cancelAnimationFrame(momentumRafId.current);
-      momentumRafId.current = null;
-    }
-    isDecelerating.current = false;
-  }, []);
 
   const isSearchActive = searchQuery.trim().length > 0;
 
@@ -1035,39 +1704,237 @@ export default function RotatingDial() {
 
   const totalItems = links.length;
 
+  // Inertia and rotational momentum state refs
+  const offsetRef = useRef(0);
+  const targetOffsetRef = useRef(0);
+  const velocityRef = useRef(0);
+  const startOffsetRef = useRef(0);
+  const startYRef = useRef(0);
+  const lastYRef = useRef(0);
+  const isPointerDownRef = useRef(false);
+  const hasDragged = useRef(false);
+  const recentDeltas = useRef<{ dy: number; time: number }[]>([]);
+  const momentumRafId = useRef<number | null>(null);
+  const isDeceleratingRef = useRef(false);
+  const settlingTargetRef = useRef<number | null>(null);
+  const lastSoundNotchRef = useRef(0);
+  const wheelAccumulatorRef = useRef(0);
+  const wheelLastTimeRef = useRef(0);
+
+  const clearMomentum = useCallback(() => {
+    if (momentumRafId.current !== null) {
+      cancelAnimationFrame(momentumRafId.current);
+      momentumRafId.current = null;
+    }
+    isDeceleratingRef.current = false;
+    settlingTargetRef.current = null;
+    velocityRef.current = 0;
+  }, []);
+
   const switchDial = useCallback((key: DialKey) => {
     clearMomentum();
     setActiveDialKey(key);
     setSearchQuery('');
-    setStep(0);
+    offsetRef.current = 0;
+    targetOffsetRef.current = 0;
+    wheelAccumulatorRef.current = 0;
+    setVisualOffset(0);
+    lastSoundNotchRef.current = 0;
   }, [clearMomentum]);
 
   const handleSearchChange = (val: string) => {
     clearMomentum();
     setSearchQuery(val);
-    setStep(0);
+    offsetRef.current = 0;
+    targetOffsetRef.current = 0;
+    wheelAccumulatorRef.current = 0;
+    setVisualOffset(0);
+    lastSoundNotchRef.current = 0;
   };
 
   const clearSearch = useCallback(() => {
     clearMomentum();
     setSearchQuery('');
-    setStep(0);
+    offsetRef.current = 0;
+    targetOffsetRef.current = 0;
+    wheelAccumulatorRef.current = 0;
+    setVisualOffset(0);
+    lastSoundNotchRef.current = 0;
     if (searchInputRef.current) {
       searchInputRef.current.blur();
     }
   }, [clearMomentum]);
 
+  // Smooth glide to a target integer slot with critically-damped deceleration & zero-lag auditory feedback
+  const glideToSlot = useCallback(
+    (targetSlot: number, triggerImmediateSound = true) => {
+      ensureAudioUnlocked();
+      clearMomentum();
+      isDeceleratingRef.current = true;
+      targetOffsetRef.current = targetSlot;
+
+      const startPos = offsetRef.current;
+      const diff = targetSlot - startPos;
+
+      if (Math.abs(diff) < 0.001) {
+        offsetRef.current = targetSlot;
+        setVisualOffset(targetSlot);
+        isDeceleratingRef.current = false;
+        return;
+      }
+
+      const dir = diff > 0 ? 'down' : 'up';
+
+      // Zero-lag instant auditory & haptic feedback on user action
+      if (triggerImmediateSound) {
+        playDialSound(dir);
+        triggerHapticFeedback(14);
+        lastSoundNotchRef.current = targetSlot;
+      }
+
+      const startTime = performance.now();
+      // Fast, snappy, and responsive glide: ~160ms for 1 notch, smooth ease-out for multi-slot glide
+      const duration = Math.min(420, Math.max(160, Math.abs(diff) * 140));
+
+      const animateGlide = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(1, elapsed / duration);
+        // Silky smooth cubic ease-out
+        const ease = 1 - Math.pow(1 - progress, 3);
+        const currentPos = startPos + diff * ease;
+
+        offsetRef.current = currentPos;
+        setVisualOffset(currentPos);
+
+        const currentNotch = Math.round(currentPos);
+        if (currentNotch !== lastSoundNotchRef.current) {
+          playDialSound(dir);
+          triggerHapticFeedback(12);
+          lastSoundNotchRef.current = currentNotch;
+        }
+
+        if (progress < 1) {
+          momentumRafId.current = requestAnimationFrame(animateGlide);
+        } else {
+          offsetRef.current = targetSlot;
+          setVisualOffset(targetSlot);
+          isDeceleratingRef.current = false;
+          momentumRafId.current = null;
+        }
+      };
+
+      momentumRafId.current = requestAnimationFrame(animateGlide);
+    },
+    [ensureAudioUnlocked, clearMomentum, playDialSound, triggerHapticFeedback]
+  );
+
   const rotateUp = useCallback(() => {
-    playMechanicalClick('up');
-    setStep((prev) => prev - 1);
-  }, [playMechanicalClick]);
+    glideToSlot(Math.round(offsetRef.current) - 1, true);
+  }, [glideToSlot]);
 
   const rotateDown = useCallback(() => {
-    playMechanicalClick('down');
-    setStep((prev) => prev + 1);
-  }, [playMechanicalClick]);
+    glideToSlot(Math.round(offsetRef.current) + 1, true);
+  }, [glideToSlot]);
 
-  // Keyboard navigation
+  // Physical inertia deceleration animation: custom non-linear velocity-dependent friction algorithm simulating physical flywheel weight
+  const startInertiaDeceleration = useCallback(
+    (initialVelocity: number) => {
+      clearMomentum();
+      isDeceleratingRef.current = true;
+      settlingTargetRef.current = null;
+      velocityRef.current = initialVelocity;
+      let lastFrameTime = performance.now();
+
+      const stepDeceleration = (currentTime: number) => {
+        const dt = Math.min(36, Math.max(4, currentTime - lastFrameTime)) / 1000;
+        lastFrameTime = currentTime;
+
+        let v = velocityRef.current;
+        let pos = offsetRef.current;
+
+        // Phase 1: Coasting phase with custom velocity-dependent non-linear physical friction
+        if (Math.abs(v) > 0.82 && settlingTargetRef.current === null) {
+          const absV = Math.abs(v);
+          const sign = Math.sign(v);
+
+          // Physical flywheel weight & aerodynamic/bearing friction model:
+          // 1. Viscous laminar grease resistance (linear with velocity)
+          const kViscous = 2.1;
+          // 2. High-speed drag resistance (proportional to velocity^1.55): absorbs peak burst of kinetic energy to impart tangible physical 'weight'
+          const kWeight = 0.14 * Math.pow(absV, 0.55);
+          // 3. Coulomb surface contact friction (constant bearing drag)
+          const kBearing = 1.6;
+
+          // Composite non-linear deceleration force (slots/sec^2)
+          const decelRate = kBearing + (kViscous + kWeight) * absV;
+
+          // Velocity decay over elapsed time step
+          const nextAbsV = Math.max(0, absV - decelRate * dt);
+          v = sign * nextAbsV;
+
+          pos += v * dt;
+          velocityRef.current = v;
+          offsetRef.current = pos;
+          setVisualOffset(pos);
+
+          const notch = Math.round(pos);
+          if (notch !== lastSoundNotchRef.current) {
+            const dir = v > 0 ? 'down' : 'up';
+            playDialSound(dir);
+            triggerHapticFeedback(12);
+            lastSoundNotchRef.current = notch;
+          }
+
+          momentumRafId.current = requestAnimationFrame(stepDeceleration);
+        } else {
+          // Phase 2: Smooth magnetic detent lock & critically-damped spring capture
+          if (settlingTargetRef.current === null) {
+            // Predict forward landing slot based on remaining momentum so it never reverses or jerks
+            settlingTargetRef.current = Math.round(pos + v * 0.24);
+          }
+
+          const target = settlingTargetRef.current;
+          const dist = target - pos;
+
+          // Critically-damped spring parameters: no overshoot, buttery smooth stop
+          const springK = 38.0;
+          const dampingC = 12.8;
+          const springAcc = dist * springK - v * dampingC;
+
+          v += springAcc * dt;
+          pos += v * dt;
+
+          velocityRef.current = v;
+          offsetRef.current = pos;
+          setVisualOffset(pos);
+
+          const notch = Math.round(pos);
+          if (notch !== lastSoundNotchRef.current) {
+            const dir = dist > 0 ? 'down' : 'up';
+            playDialSound(dir);
+            triggerHapticFeedback(12);
+            lastSoundNotchRef.current = notch;
+          }
+
+          if (Math.abs(dist) < 0.0025 && Math.abs(v) < 0.04) {
+            offsetRef.current = target;
+            setVisualOffset(target);
+            velocityRef.current = 0;
+            isDeceleratingRef.current = false;
+            settlingTargetRef.current = null;
+            momentumRafId.current = null;
+          } else {
+            momentumRafId.current = requestAnimationFrame(stepDeceleration);
+          }
+        }
+      };
+
+      momentumRafId.current = requestAnimationFrame(stepDeceleration);
+    },
+    [clearMomentum, playDialSound, triggerHapticFeedback]
+  );
+
+  // Keyboard navigation with smooth deceleration gliding
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // If user presses Escape: clear search or return to main
@@ -1101,174 +1968,146 @@ export default function RotatingDial() {
         rotateUp();
       } else if (e.key === 'PageDown') {
         e.preventDefault();
-        setStep((prev) => prev + 2);
+        glideToSlot(Math.round(offsetRef.current) + 2);
       } else if (e.key === 'PageUp') {
         e.preventDefault();
-        setStep((prev) => prev - 2);
+        glideToSlot(Math.round(offsetRef.current) - 2);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [rotateDown, rotateUp, activeDialKey, switchDial, isSearchActive, clearSearch]);
+  }, [rotateDown, rotateUp, activeDialKey, switchDial, isSearchActive, clearSearch, glideToSlot]);
 
-  // Smooth wheel listener with generous threshold and cooldown
+  // Immediate, buttery-smooth wheel listener with zero audio lag and responsive detent tracking
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const handleWheelEvent = (e: WheelEvent) => {
       e.preventDefault();
+      ensureAudioUnlocked();
+
+      // Normalize delta across input devices (pixels, lines, pages)
+      let rawDelta = e.deltaY;
+      if (e.deltaMode === 1) rawDelta *= 20;
+      else if (e.deltaMode === 2) rawDelta *= 300;
+
       const now = performance.now();
+      // If idle for more than 160ms, reset wheel accumulator to synchronize with user's new motion
+      if (now - wheelLastTimeRef.current > 160) {
+        wheelAccumulatorRef.current = 0;
+        targetOffsetRef.current = Math.round(offsetRef.current);
+      }
+      wheelLastTimeRef.current = now;
 
-      // Enforce a calm cooldown between wheel-triggered steps (320ms)
-      if (now - lastStepTime.current < 320) return;
+      wheelAccumulatorRef.current += rawDelta;
 
-      wheelAccumulator.current += e.deltaY;
+      // 45px threshold per detent notch step
+      const THRESHOLD = 45;
+      if (Math.abs(wheelAccumulatorRef.current) >= THRESHOLD) {
+        const steps = Math.trunc(wheelAccumulatorRef.current / THRESHOLD);
+        wheelAccumulatorRef.current -= steps * THRESHOLD;
 
-      if (Math.abs(wheelAccumulator.current) > 55) {
-        ensureAudioUnlocked();
-        if (wheelAccumulator.current > 0) {
-          rotateDown();
-        } else {
-          rotateUp();
-        }
-        lastStepTime.current = now;
-        wheelAccumulator.current = 0;
+        // Immediate directional ratchet sound - zero lag!
+        const dir = steps > 0 ? 'down' : 'up';
+        playDialSound(dir);
+        triggerHapticFeedback(14);
+
+        // Smoothly advance target slot and animate without delay
+        const currentBase = isDeceleratingRef.current
+          ? targetOffsetRef.current
+          : Math.round(offsetRef.current);
+        const newTarget = currentBase + steps;
+        targetOffsetRef.current = newTarget;
+
+        glideToSlot(newTarget, false);
       }
     };
 
     container.addEventListener('wheel', handleWheelEvent, { passive: false });
     return () => container.removeEventListener('wheel', handleWheelEvent);
-  }, [rotateDown, rotateUp, ensureAudioUnlocked]);
+  }, [ensureAudioUnlocked, playDialSound, triggerHapticFeedback, glideToSlot]);
 
   // Unified, buttery-smooth pointer events with physical momentum glide
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Prime and wake mobile audio immediately on gesture
     ensureAudioUnlocked();
 
     // Ignore drag if clicking directly on input or button controls
-    if ((e.target as HTMLElement).closest('input, button')) return;
+    if ((e.target as HTMLElement).closest('input, button, [role="dialog"]')) return;
 
     clearMomentum();
-    isPointerDown.current = true;
-    startY.current = e.clientY;
-    lastY.current = e.clientY;
-    dragAccumulator.current = 0;
-    recentDeltas.current = [];
+    isPointerDownRef.current = true;
+    startYRef.current = e.clientY;
+    startOffsetRef.current = offsetRef.current;
+    lastYRef.current = e.clientY;
+    recentDeltas.current = [{ dy: 0, time: performance.now() }];
     hasDragged.current = false;
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isPointerDown.current) return;
+    if (!isPointerDownRef.current) return;
 
-    const totalDelta = e.clientY - startY.current;
-    const dy = e.clientY - lastY.current;
-    lastY.current = e.clientY;
+    const totalDelta = e.clientY - startYRef.current;
+    const dy = e.clientY - lastYRef.current;
+    lastYRef.current = e.clientY;
 
-    if (Math.abs(totalDelta) > 8) {
+    if (Math.abs(totalDelta) > 6) {
       hasDragged.current = true;
     }
 
     const now = performance.now();
-    // Maintain a rolling window of recent movement deltas for release velocity
     recentDeltas.current.push({ dy, time: now });
     if (recentDeltas.current.length > 5) {
       recentDeltas.current.shift();
     }
 
-    dragAccumulator.current += dy;
+    // 1:1 responsive tactile dragging: 64px = 1 detent step
+    const STEP_PX = 64;
+    const newOffset = startOffsetRef.current - totalDelta / STEP_PX;
+    offsetRef.current = newOffset;
+    setVisualOffset(newOffset);
 
-    // Natural, calm rotation threshold (55px movement per step)
-    // with a minimum 260ms cooldown to eliminate rapid stutter/shaking
-    const ROTATE_THRESHOLD = 55;
-    const STEP_COOLDOWN = 260;
-
-    if (
-      Math.abs(dragAccumulator.current) >= ROTATE_THRESHOLD &&
-      now - lastStepTime.current > STEP_COOLDOWN
-    ) {
-      if (dragAccumulator.current < 0) {
-        rotateDown();
-      } else {
-        rotateUp();
-      }
-      lastStepTime.current = now;
-      dragAccumulator.current = 0;
+    // Synchronize directional sound and haptic feedback as detents are crossed while dragging
+    const notch = Math.round(newOffset);
+    if (notch !== lastSoundNotchRef.current) {
+      const dir = newOffset > lastSoundNotchRef.current ? 'down' : 'up';
+      playDialSound(dir);
+      triggerHapticFeedback(14);
+      lastSoundNotchRef.current = notch;
     }
   };
 
   const handlePointerUp = () => {
-    if (!isPointerDown.current) return;
-    isPointerDown.current = false;
+    if (!isPointerDownRef.current) return;
+    isPointerDownRef.current = false;
 
-    // Calculate release velocity from the last 120ms of movement
+    // Calculate release velocity from the last 80ms of movement
     const now = performance.now();
-    const validDeltas = recentDeltas.current.filter((d) => now - d.time < 120);
+    const validDeltas = recentDeltas.current.filter((d) => now - d.time < 80);
 
-    let releaseVelocity = 0; // pixels per ms
+    let releaseVelocity = 0; // steps per second
     if (validDeltas.length >= 2) {
       const sumDy = validDeltas.reduce((acc, cur) => acc + cur.dy, 0);
-      const timeSpan = Math.max(1, validDeltas[validDeltas.length - 1].time - validDeltas[0].time);
-      releaseVelocity = sumDy / timeSpan;
+      const timeSpan = Math.max(8, validDeltas[validDeltas.length - 1].time - validDeltas[0].time);
+      const pxPerSec = -(sumDy / timeSpan) * 1000;
+      releaseVelocity = pxPerSec / 64; // convert to steps/sec
     }
 
-    // Physical inertia deceleration:
-    // If released with velocity, the rotating dial continues to coast forward in that direction
-    // under heavy rotational friction (0.91 per frame) until it smoothly settles into the ratchet detent.
-    const absVel = Math.abs(releaseVelocity);
-    if (absVel > 0.28) {
-      isDecelerating.current = true;
-      let currentVelocity = releaseVelocity;
-      let accumulatedDistance = 0;
-      let lastFrameTime = performance.now();
-      const DISTANCE_PER_DETENT = 58; // Physical step threshold
-      const FRICTION = 0.905; // Natural rotary cylinder friction coefficient
+    // Clamp maximum release speed to ensure controlled, natural flywheel glide
+    releaseVelocity = Math.max(-16, Math.min(16, releaseVelocity));
 
-      const stepDeceleration = (currentTime: number) => {
-        const dt = Math.min(32, Math.max(8, currentTime - lastFrameTime));
-        lastFrameTime = currentTime;
-
-        // Apply friction decay scaled by frame delta
-        currentVelocity *= Math.pow(FRICTION, dt / 16.67);
-        accumulatedDistance += currentVelocity * dt;
-
-        // Trigger detent click step whenever accumulated distance crosses threshold
-        if (Math.abs(accumulatedDistance) >= DISTANCE_PER_DETENT) {
-          if (accumulatedDistance < 0) {
-            rotateDown();
-            accumulatedDistance += DISTANCE_PER_DETENT;
-          } else {
-            rotateUp();
-            accumulatedDistance -= DISTANCE_PER_DETENT;
-          }
-        }
-
-        // Continue coasting until velocity falls below tactile threshold
-        if (Math.abs(currentVelocity) > 0.08) {
-          momentumRafId.current = requestAnimationFrame(stepDeceleration);
-        } else {
-          // Final slight nudge if lingering past halfway detent mark
-          if (Math.abs(accumulatedDistance) > DISTANCE_PER_DETENT * 0.45) {
-            if (accumulatedDistance < 0) {
-              rotateDown();
-            } else {
-              rotateUp();
-            }
-          }
-          isDecelerating.current = false;
-          momentumRafId.current = null;
-        }
-      };
-
-      momentumRafId.current = requestAnimationFrame(stepDeceleration);
+    if (Math.abs(releaseVelocity) < 0.25) {
+      // Releasing stationary: cleanly settle into closest slot with magnetic ease
+      glideToSlot(Math.round(offsetRef.current), false);
+    } else {
+      // Launch smooth physical inertia deceleration animation
+      startInertiaDeceleration(releaseVelocity);
     }
 
-    dragAccumulator.current = 0;
-    recentDeltas.current = [];
     setTimeout(() => {
       hasDragged.current = false;
-    }, 140);
+    }, 150);
   };
 
   const handleAction = (item: DialLinkItem, slotOffset: number, e: React.MouseEvent) => {
@@ -1279,28 +2118,16 @@ export default function RotatingDial() {
       return;
     }
 
-    // Tap to center: If a user taps on an upper (slotOffset < 1) or lower (slotOffset > 2) visible card,
-    // rotate the dial to bring that item into center focus
-    if (slotOffset === -1) {
+    // Tap to center: If a user taps on an upper (slotOffset <= 0.6) or lower (slotOffset >= 2.4) visible card,
+    // smoothly glide the dial with physical deceleration to bring that item into center focus
+    if (slotOffset <= 0.6) {
       e.preventDefault();
-      rotateUp();
-      setTimeout(() => rotateUp(), 200);
+      glideToSlot(Math.round(offsetRef.current + slotOffset - 1));
       return;
     }
-    if (slotOffset === 0) {
+    if (slotOffset >= 2.4) {
       e.preventDefault();
-      rotateUp();
-      return;
-    }
-    if (slotOffset === 3) {
-      e.preventDefault();
-      rotateDown();
-      return;
-    }
-    if (slotOffset === 4) {
-      e.preventDefault();
-      rotateDown();
-      setTimeout(() => rotateDown(), 200);
+      glideToSlot(Math.round(offsetRef.current + slotOffset - 2));
       return;
     }
 
@@ -1337,43 +2164,16 @@ export default function RotatingDial() {
   };
 
   const getItemTransformData = (index: number) => {
-    const rawDiff = index - step;
+    const rawDiff = index - visualOffset;
     let d = ((rawDiff % totalItems) + totalItems) % totalItems;
     if (d > totalItems / 2) {
       d -= totalItems;
     }
 
-    const config = SLOT_CONFIGS[d];
-
-    if (config) {
-      return {
-        d,
-        y: config.y,
-        z: config.z,
-        rotateX: config.rotateX,
-        scale: config.scale,
-        opacity: config.opacity,
-        isForefront: config.isForefront,
-        isCenter: config.isCenter,
-        boxShadow: config.boxShadow,
-        shadowOverlayOpacity: config.shadowOverlayOpacity,
-        visible: true,
-      };
-    }
-
-    const isAbove = d < 0;
+    const cfg = getContinuousSlotConfig(d);
     return {
       d,
-      y: isAbove ? -450 : 450,
-      z: -280,
-      rotateX: isAbove ? 80 : -80,
-      scale: 0.60,
-      opacity: 0,
-      isForefront: false,
-      isCenter: false,
-      boxShadow: '0 0 0 rgba(0,0,0,0)',
-      shadowOverlayOpacity: 0.85,
-      visible: false,
+      ...cfg,
     };
   };
 
@@ -1386,97 +2186,28 @@ export default function RotatingDial() {
       onPointerCancel={handlePointerUp}
       tabIndex={0}
       aria-label="3D Vertical Rotating Dial Menu. Use scroll, drag, or arrow keys to rotate."
-      className="fixed inset-0 w-screen h-screen overflow-hidden flex flex-col items-center bg-[#07080c] select-none cursor-grab active:cursor-grabbing focus:outline-none touch-none"
+      className="fixed inset-0 w-full max-w-full h-full h-[100dvh] overflow-hidden flex flex-col items-center bg-[#07080c] select-none cursor-grab active:cursor-grabbing focus:outline-none touch-none"
     >
-      {/* Prominent Floating Top-Right Loudspeaker Audio Controller */}
-      <div className="fixed top-3 right-3 sm:top-4 sm:right-5 z-50 flex flex-col items-end pointer-events-auto">
-        <button
-          type="button"
-          onClick={handleLoudspeakerClick}
-          aria-label={!isMuted ? 'Sound active (ON). Click to mute mechanical dial audio' : 'Sound muted (OFF). Click to activate mechanical dial audio'}
-          title={!isMuted ? 'Sound is ACTIVE (ON) — Click to mute' : 'Sound is MUTED (OFF) — Click to turn ON'}
-          className={`relative group flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl shadow-[0_8px_24px_rgba(0,0,0,0.7)] backdrop-blur-md border transition-all duration-200 cursor-pointer active:scale-95 ${
-            !isMuted
-              ? 'bg-gradient-to-br from-amber-500/25 via-amber-400/15 to-neutral-900/90 border-amber-400/70 shadow-[0_0_24px_rgba(245,158,11,0.4)] hover:border-amber-300 hover:shadow-[0_0_32px_rgba(245,158,11,0.55)]'
-              : 'bg-neutral-900/90 border-red-500/30 text-neutral-400 hover:border-red-400/60 hover:text-white hover:bg-neutral-800 shadow-[0_0_16px_rgba(239,68,68,0.15)]'
-          }`}
-        >
-          {/* Ambient wave pulse when sound is active */}
-          {!isMuted && (
-            <span
-              aria-hidden="true"
-              className="absolute inset-0 rounded-2xl border-2 border-amber-400/50 animate-ping opacity-25 pointer-events-none"
-            />
-          )}
-
-          {/* Sound State Icon */}
-          <div className="flex items-center justify-center mb-0.5">
-            {!isMuted ? (
-              <Volume2 className="w-5 h-5 sm:w-6 sm:h-6 text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.8)] group-hover:scale-110 transition-transform" />
-            ) : (
-              <VolumeX className="w-5 h-5 sm:w-6 sm:h-6 text-neutral-400 group-hover:scale-110 group-hover:text-red-300 transition-transform" />
-            )}
-          </div>
-
-          {/* Clear Visual State Label Badge (ON / OFF) */}
-          <span
-            className={`text-[9px] sm:text-[10px] font-mono font-bold tracking-wider px-1.5 py-0.2 rounded-full border leading-tight transition-colors ${
-              !isMuted
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/50 shadow-[0_0_8px_rgba(52,211,153,0.3)]'
-                : 'bg-neutral-800 text-neutral-400 border-neutral-600'
-            }`}
-          >
-            {!isMuted ? 'ON' : 'OFF'}
-          </span>
-
-          {/* Glowing Status Indicator Dot */}
-          <span
-            className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full border border-neutral-950 ${
-              !isMuted
-                ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
-                : 'bg-red-500/80 shadow-[0_0_6px_rgba(239,68,68,0.6)]'
-            }`}
-          />
-        </button>
-
-        {/* Floating Prompt Bar: Only shown when audio is MUTED */}
-        {isMuted && (
-          <div
-            onClick={handleLoudspeakerClick}
-            className="sound-prompt-pulse mt-2.5 max-w-[215px] sm:max-w-[245px] p-2.5 rounded-xl bg-neutral-900/95 border border-amber-400/50 shadow-[0_12px_28px_rgba(0,0,0,0.8),0_0_20px_rgba(245,158,11,0.2)] text-left cursor-pointer transition-all hover:border-amber-300"
-          >
-            <div className="flex items-start gap-2">
-              <span className="text-base leading-none">🔊</span>
-              <div>
-                <p className="text-[11px] sm:text-xs font-semibold text-amber-300 leading-tight">
-                  Tap to Activate Sound!
-                </p>
-                <p className="text-[10px] sm:text-[11px] text-neutral-300 leading-snug mt-0.5">
-                  Sound is currently muted. Tap here or icon above to turn ON.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Top Header: Search Bar + Return to DIALs Controller + DELSM LaunchPad Banner */}
-      <header className="z-30 w-[92vw] max-w-[540px] pt-2 sm:pt-4 pr-14 sm:pr-0 flex flex-col items-center gap-1.5 sm:gap-2 shrink-0">
-        <div className="relative w-full flex items-center">
-          <div className="absolute left-3.5 flex items-center pointer-events-none text-neutral-400">
-            <Search className="w-4 h-4" />
-          </div>
-
+      {/* Top Header: Full Screen Width Search Bar + DELSM LaunchPad & Right-Aligned Volume Controller + Quick Switch DIAL Bar */}
+      <header className="z-30 w-full max-w-full px-2.5 sm:px-5 pt-2 sm:pt-3 flex flex-col items-center gap-1.5 sm:gap-2 shrink-0">
+        {/* 1. Full Screen Width Search Bar with 3D Depth Search Icon right-aligned */}
+        <div className="relative w-full max-w-full flex items-center">
           <input
             ref={searchInputRef}
             type="text"
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search all DIALs (e.g. Checklists, DGR, OPS, Ramp, Star, LL)..."
-            className="w-full pl-10 pr-20 py-2 sm:py-2.5 rounded-xl bg-neutral-900/85 border border-white/20 text-neutral-100 placeholder-neutral-500 text-xs sm:text-sm font-medium tracking-tight shadow-xl backdrop-blur-md focus:outline-none focus:border-white/50 focus:ring-2 focus:ring-white/20 transition-all touch-auto pointer-events-auto"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck="false"
+            style={{ fontSize: '16px' }}
+            className="w-full pl-4 sm:pl-5 pr-20 sm:pr-24 py-2 sm:py-2.5 rounded-xl bg-neutral-900/90 border border-white/20 text-neutral-100 placeholder-neutral-500 text-[16px] font-medium tracking-tight shadow-xl backdrop-blur-md focus:outline-none focus:border-sky-400/60 focus:ring-2 focus:ring-sky-400/20 transition-all touch-auto pointer-events-auto"
           />
 
-          <div className="absolute right-2 flex items-center gap-1.5">
+          {/* Right-aligned controls: Clear search + 3D Search Icon with Depth + kbd shortcut */}
+          <div className="absolute right-2 sm:right-2.5 flex items-center gap-1.5 pointer-events-auto">
             {isSearchActive && (
               <button
                 type="button"
@@ -1487,91 +2218,52 @@ export default function RotatingDial() {
                 <X className="w-4 h-4" />
               </button>
             )}
+
+            {/* Tactile 3D Search Icon with physical depth and metallic bevel */}
+            <button
+              type="button"
+              onClick={() => searchInputRef.current?.focus()}
+              title="Search DIALs"
+              aria-label="Search DIALs"
+              className="relative group flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-b from-sky-400/30 via-slate-800 to-[#07132a] border border-sky-400/60 shadow-[0_4px_0_#020b18,0_6px_12px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_-1px_2px_rgba(0,0,0,0.7)] active:translate-y-[2px] active:shadow-[0_2px_0_#020b18,0_2px_6px_rgba(0,0,0,0.8),inset_0_1px_2px_rgba(0,0,0,0.9)] transition-all cursor-pointer select-none"
+              style={{
+                transformStyle: 'preserve-3d',
+              }}
+            >
+              <Search className="w-4 h-4 text-sky-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] group-hover:text-white group-hover:scale-105 transition-all" />
+              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-sky-400 shadow-[0_0_6px_#38bdf8]" />
+            </button>
+
             <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-mono text-neutral-400 bg-white/5 rounded border border-white/10">
               /
             </kbd>
           </div>
         </div>
 
-        {/* Quick Return to Any DIAL Options */}
-        <div className="w-full flex items-center justify-between px-1 text-[11px] font-mono">
-          <div className="flex items-center gap-1.5 text-neutral-400 truncate">
-            <Layers className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
-            <span className="text-neutral-500 shrink-0">DIAL:</span>
-            <span className="text-neutral-200 font-medium truncate">
-              {isSearchActive ? `Search (${searchResults.length} matches)` : currentDial.title}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1 shrink-0">
-            {/* Mechanical Audio Toggle Button */}
-            <button
-              type="button"
-              onClick={() => setIsMuted((prev) => !prev)}
-              className={`p-1 mr-0.5 rounded transition-colors cursor-pointer ${
-                !isMuted
-                  ? 'text-amber-400 hover:text-amber-300 hover:bg-white/10'
-                  : 'text-neutral-500 hover:text-neutral-300 hover:bg-white/10'
-              }`}
-              title={isMuted ? 'Unmute mechanical dial sound' : 'Mute mechanical dial sound'}
-              aria-label={isMuted ? 'Unmute dial sound' : 'Mute dial sound'}
-            >
-              {!isMuted ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-            </button>
-
-            <span className="text-neutral-600 hidden sm:inline mr-1">Switch:</span>
-            {(['main', 'dgr', 'ops', 'll'] as DialKey[]).map((key) => {
-              const isActive = activeDialKey === key && !isSearchActive;
-              const labels: Record<DialKey, string> = {
-                main: 'Main',
-                dgr: 'DGR',
-                ops: 'OPS',
-                ll: 'LL',
-              };
-
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => switchDial(key)}
-                  className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
-                    isActive
-                      ? 'bg-white/20 text-white border border-white/30'
-                      : 'text-neutral-400 hover:text-white hover:bg-white/10'
-                  }`}
-                  title={`Open ${DIAL_DATA[key].title}`}
-                >
-                  {labels[key]}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* DELSM LaunchPad App Banner (Inserted between search bar and 3D dial) */}
+        {/* 2. DELSM LaunchPad Banner + Volume Icon: Together taking the entire width of the screen */}
         <div
           onClick={() => {
             if (isSearchActive) clearSearch();
             if (activeDialKey !== 'main') switchDial('main');
           }}
           title="DELSM LaunchPad - Click to return to Main Dial"
-          className="relative w-full h-[58px] sm:h-[72px] rounded-xl overflow-hidden border border-sky-400/25 hover:border-sky-300/50 shadow-[0_8px_28px_rgba(0,18,50,0.7),0_0_20px_rgba(14,165,233,0.12)] bg-[#07132a] flex items-center px-3.5 sm:px-4 shrink-0 transition-all cursor-pointer group select-none"
+          className="relative w-full min-h-[62px] sm:min-h-[72px] rounded-xl overflow-hidden border border-sky-400/25 hover:border-sky-300/50 shadow-[0_8px_28px_rgba(0,18,50,0.7),0_0_20px_rgba(14,165,233,0.12)] bg-[#07132a] flex items-center justify-between px-3 sm:px-4 py-2 shrink-0 transition-all cursor-pointer group select-none"
         >
           {/* Banner Graphic Background with smooth gradient fade */}
           <Image
             src="/delsm_banner.jpg"
             alt="DELSM LaunchPad Banner"
             fill
-            sizes="(max-width: 768px) 92vw, 540px"
+            sizes="100vw"
             priority
             className="absolute inset-0 w-full h-full object-cover object-center opacity-75 group-hover:opacity-90 group-hover:scale-[1.015] transition-all duration-300 pointer-events-none"
             referrerPolicy="no-referrer"
           />
           {/* Contrast enhancement overlay */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#061226]/95 via-[#081a36]/85 to-[#040e1e]/65 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#061226]/95 via-[#081a36]/85 to-[#040e1e]/75 pointer-events-none" />
 
-          {/* Banner Content Layout matching provided image */}
-          <div className="relative z-10 flex items-center gap-3 sm:gap-4 w-full min-w-0">
+          {/* Left: DELSM LaunchPad Emblem & Titles */}
+          <div className="relative z-10 flex items-center gap-2.5 sm:gap-4 min-w-0 flex-1 mr-2">
             {/* DELSM LaunchPad Emblem SVG Badge */}
             <div className="shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full relative flex items-center justify-center p-0.5 filter drop-shadow-[0_0_8px_rgba(56,189,248,0.45)]">
               <svg viewBox="0 0 100 100" className="w-full h-full">
@@ -1613,20 +2305,154 @@ export default function RotatingDial() {
               </svg>
             </div>
 
-            {/* Banner Titles Matching the User Image */}
+            {/* Banner Titles */}
             <div className="flex flex-col min-w-0 justify-center">
-              <div className="flex items-center gap-2">
-                <h1 className="text-white font-black text-sm sm:text-xl tracking-tight leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h1 className="text-white font-black text-xs sm:text-base md:text-lg tracking-tight leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] truncate">
                   DELSM LaunchPad
                 </h1>
-                <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-400/30">
+                <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[8.5px] font-mono font-semibold uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-400/30 shrink-0">
                   Lufthansa Group
                 </span>
               </div>
-              <p className="text-sky-200/90 text-[10.5px] sm:text-[13px] font-medium tracking-tight truncate drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)] mt-0.5">
+              <p className="text-sky-200/90 text-[10px] sm:text-[12px] font-medium tracking-tight truncate drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)] mt-0.5">
                 DELSM Apps Drawer and important Links
               </p>
             </div>
+          </div>
+
+          {/* Right: Volume Icon right-aligned to DELSM LaunchPad icon */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative z-20 flex items-center gap-1.5 sm:gap-2 shrink-0 pointer-events-auto"
+          >
+            {/* Active Sound Theme Pill Button */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                ensureAudioUnlocked();
+                setIsSoundSelectorOpen(true);
+              }}
+              title="Click to view all 10 Dial Sound Themes. (Double-click or hold volume button to quick switch)"
+              className="hidden md:flex px-2 py-1 rounded-lg text-[10px] font-mono font-medium bg-neutral-900/90 border border-amber-400/40 text-neutral-200 hover:border-amber-300 hover:text-amber-300 hover:bg-neutral-800 transition-all items-center gap-1 shadow-md backdrop-blur-md cursor-pointer select-none"
+            >
+              <span>{currentSoundTheme.icon}</span>
+              <span className="truncate max-w-[75px]">{currentSoundTheme.shortLabel}</span>
+              <span className="text-[8px] text-amber-400 font-bold">10 FX</span>
+            </button>
+
+            {/* 3D Tactile Volume Controller Button */}
+            <button
+              type="button"
+              onClick={handleLoudspeakerClick}
+              onDoubleClick={handleLoudspeakerDoubleClick}
+              onTouchStart={handleLoudspeakerTouchStart}
+              onTouchMove={handleLoudspeakerTouchMove}
+              onTouchEnd={handleLoudspeakerTouchEnd}
+              aria-label={!isMuted ? `Sound active: ${currentSoundTheme.name}. Click to mute, double-click or long-press to switch sound theme.` : 'Sound muted. Click to turn on.'}
+              title={!isMuted ? `Sound: ON (${currentSoundTheme.name})\n• Click: Mute/Unmute\n• Double-click or Long-press: Change Sound Theme (10 FX)` : 'Sound: MUTED — Click to turn ON'}
+              className={`relative group flex items-center justify-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl shadow-[0_4px_0_#020b18,0_6px_14px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.3)] active:translate-y-[2px] active:shadow-[0_2px_0_#020b18,0_2px_6px_rgba(0,0,0,0.8)] border transition-all cursor-pointer select-none ${
+                !isMuted
+                  ? 'bg-gradient-to-b from-amber-500/25 via-amber-950/40 to-neutral-950 border-amber-400/70 shadow-[0_0_16px_rgba(245,158,11,0.35)] hover:border-amber-300'
+                  : 'bg-gradient-to-b from-neutral-800 to-neutral-950 border-red-500/40 text-neutral-400 hover:border-red-400/60 hover:text-white'
+              }`}
+            >
+              {/* Ambient wave pulse when sound is active */}
+              {!isMuted && (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 rounded-xl border border-amber-400/50 animate-ping opacity-20 pointer-events-none"
+                />
+              )}
+
+              {/* Sound Icon */}
+              {!isMuted ? (
+                <Volume2 className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.8)] group-hover:scale-110 transition-transform" />
+              ) : (
+                <VolumeX className="w-4 h-4 sm:w-5 sm:h-5 text-neutral-400 group-hover:scale-110 group-hover:text-red-300 transition-transform" />
+              )}
+
+              {/* Sound state badge and theme indicator */}
+              <div className="flex flex-col items-start leading-none">
+                <span
+                  className={`text-[9px] font-mono font-bold tracking-wider ${
+                    !isMuted ? 'text-emerald-300' : 'text-neutral-400'
+                  }`}
+                >
+                  {!isMuted ? 'ON' : 'MUTED'}
+                </span>
+                <span className="text-[8px] text-amber-400 font-mono mt-0.5">
+                  {currentSoundTheme.icon}
+                </span>
+              </div>
+
+              {/* Glowing Status Dot */}
+              <span
+                className={`w-2 h-2 rounded-full border border-neutral-950 ml-0.5 ${
+                  !isMuted
+                    ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]'
+                    : 'bg-red-500/80 shadow-[0_0_4px_rgba(239,68,68,0.6)]'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Floating Prompt Bar: Shown cleanly below banner when audio is MUTED */}
+        {isMuted && (
+          <div
+            onClick={handleLoudspeakerClick}
+            className="sound-prompt-pulse w-full max-w-sm p-2 rounded-xl bg-neutral-900/95 border border-amber-400/50 shadow-[0_8px_20px_rgba(0,0,0,0.8),0_0_16px_rgba(245,158,11,0.2)] flex items-center justify-between gap-2 cursor-pointer transition-all hover:border-amber-300"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-base leading-none">🔊</span>
+              <p className="text-[11px] font-semibold text-amber-300 leading-tight">
+                Tap here to activate dial sound!
+              </p>
+            </div>
+            <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-400 text-neutral-950">
+              UNMUTE
+            </span>
+          </div>
+        )}
+
+        {/* 3. Quick Return to Any DIAL Options */}
+        <div className="w-full flex items-center justify-between px-1 text-[11px] font-mono">
+          <div className="flex items-center gap-1.5 text-neutral-400 truncate">
+            <Layers className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+            <span className="text-neutral-200 font-medium truncate">
+              {isSearchActive ? `Search (${searchResults.length} matches)` : currentDial.title}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-neutral-600 hidden sm:inline mr-1">Switch:</span>
+            {(['main', 'dgr', 'ops', 'll'] as DialKey[]).map((key) => {
+              const isActive = activeDialKey === key && !isSearchActive;
+              const labels: Record<DialKey, string> = {
+                main: 'Main',
+                dgr: 'DGR',
+                ops: 'OPS',
+                ll: 'LL',
+              };
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => switchDial(key)}
+                  className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+                    isActive
+                      ? 'bg-white/20 text-white border border-white/30'
+                      : 'text-neutral-400 hover:text-white hover:bg-white/10'
+                  }`}
+                  title={`Open ${DIAL_DATA[key].title}`}
+                >
+                  {labels[key]}
+                </button>
+              );
+            })}
           </div>
         </div>
       </header>
@@ -1671,10 +2497,9 @@ export default function RotatingDial() {
                   pointerEvents: data.isForefront ? 'auto' : 'none',
                   visibility: data.visible ? 'visible' : 'hidden',
                   willChange: 'transform, opacity, box-shadow, filter',
-                  transition:
-                    'transform 580ms cubic-bezier(0.2, 0.95, 0.35, 1), opacity 500ms cubic-bezier(0.2, 0.95, 0.35, 1), box-shadow 580ms cubic-bezier(0.2, 0.95, 0.35, 1), filter 580ms cubic-bezier(0.2, 0.95, 0.35, 1), background-color 200ms ease, border-color 200ms ease',
+                  transition: 'background-color 200ms ease, border-color 200ms ease',
                 }}
-                className={`absolute w-[88vw] max-w-[460px] h-[78px] px-6 py-3.5 rounded-xl flex items-center justify-between group transition-all outline-none touch-manipulation active:scale-[0.98] ${
+                className={`absolute w-[88vw] max-w-[460px] h-[78px] px-6 py-3.5 rounded-xl flex items-center justify-between group outline-none touch-manipulation active:scale-[0.98] ${
                   !isClickable ? 'cursor-not-allowed' : 'cursor-pointer'
                 } ${
                   isReturnItem
@@ -1690,7 +2515,7 @@ export default function RotatingDial() {
                 {data.shadowOverlayOpacity > 0 && (
                   <div
                     aria-hidden="true"
-                    className="absolute inset-0 rounded-xl bg-gradient-to-b from-black/80 via-black/40 to-black/80 pointer-events-none transition-opacity duration-500"
+                    className="absolute inset-0 rounded-xl bg-gradient-to-b from-black/80 via-black/40 to-black/80 pointer-events-none"
                     style={{ opacity: data.shadowOverlayOpacity }}
                   />
                 )}
@@ -1748,6 +2573,158 @@ export default function RotatingDial() {
       {toastMessage && (
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-lg bg-neutral-900/95 border border-white/20 text-neutral-200 text-xs sm:text-sm font-medium shadow-2xl backdrop-blur-md pointer-events-none transition-all">
           {toastMessage}
+        </div>
+      )}
+
+      {/* 10 Sound Themes Selector Modal */}
+      {isSoundSelectorOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Dial Sound Themes Selector"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150"
+          onClick={handleReturnFromSoundSelector}
+        >
+          <div
+            className="relative w-full max-w-lg max-h-[88vh] overflow-hidden flex flex-col rounded-2xl bg-neutral-900 border border-amber-400/50 shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_30px_rgba(245,158,11,0.2)] text-neutral-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 border-b border-white/10 bg-gradient-to-r from-amber-500/10 via-neutral-900 to-neutral-900">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xl sm:text-2xl">🔊</span>
+                <div>
+                  <h2 className="text-sm sm:text-base font-bold tracking-tight text-white flex items-center gap-2">
+                    Dial Sound Profiles
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                      10 FX Available
+                    </span>
+                  </h2>
+                  <p className="text-[11px] text-neutral-400">
+                    Selecting a profile automatically turns sound ON and returns to the dial
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleReturnFromSoundSelector}
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title="Return to Main Interface (Sound Active)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable list of 10 sound themes */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5">
+              {SOUND_THEMES.map((theme, idx) => {
+                const isActive = selectedSoundThemeId === theme.id;
+                return (
+                  <div
+                    key={theme.id}
+                    onClick={() => {
+                      cycleSoundTheme(theme.id);
+                    }}
+                    className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
+                      isActive
+                        ? 'bg-amber-500/15 border-amber-400/70 shadow-[0_0_16px_rgba(245,158,11,0.25)] ring-1 ring-amber-400/40'
+                        : 'bg-neutral-800/40 border-white/5 hover:border-white/20 hover:bg-neutral-800/70'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <span className="text-xl sm:text-2xl select-none">{theme.icon}</span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs sm:text-sm font-semibold text-white">
+                              {idx + 1}. {theme.name}
+                            </span>
+                            {isActive && (
+                              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold bg-emerald-500/25 text-emerald-300 border border-emerald-400/50 flex items-center gap-1">
+                                <Volume2 className="w-2.5 h-2.5" />
+                                ACTIVE
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-neutral-300 leading-snug mt-0.5">
+                            {theme.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* 1-Tap Select & Return Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cycleSoundTheme(theme.id, true);
+                        }}
+                        title={`Activate ${theme.name} and return to dial`}
+                        className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                          isActive
+                            ? 'bg-amber-400 text-neutral-950 hover:bg-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.5)]'
+                            : 'bg-white/10 hover:bg-amber-400 hover:text-neutral-950 text-neutral-200 border border-white/10'
+                        }`}
+                      >
+                        <Check className="w-3 h-3 stroke-[2.5]" />
+                        <span>{isActive ? 'Use & Return' : 'Select'}</span>
+                      </button>
+                    </div>
+
+                    {/* Clockwise vs Anticlockwise Direction Preview Controls */}
+                    <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-white/5 text-[10px] font-mono text-neutral-400">
+                      <span className="text-neutral-500">Direction preview:</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            ensureAudioUnlocked();
+                            setIsMuted(false);
+                            playDialSound('down', theme.id);
+                          }}
+                          title={`Test Clockwise: ${theme.clockwiseName}`}
+                          className="px-2 py-1 rounded-md bg-white/5 hover:bg-amber-400/20 hover:text-amber-300 border border-white/10 transition-colors flex items-center gap-1 text-[10px] cursor-pointer"
+                        >
+                          <RotateCw className="w-3 h-3 text-amber-400" />
+                          <span>CW (Down)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            ensureAudioUnlocked();
+                            setIsMuted(false);
+                            playDialSound('up', theme.id);
+                          }}
+                          title={`Test Anticlockwise: ${theme.anticlockwiseName}`}
+                          className="px-2 py-1 rounded-md bg-white/5 hover:bg-sky-400/20 hover:text-sky-300 border border-white/10 transition-colors flex items-center gap-1 text-[10px] cursor-pointer"
+                        >
+                          <RotateCcw className="w-3 h-3 text-sky-400" />
+                          <span>CCW (Up)</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-4 py-3 bg-neutral-950/80 border-t border-white/10 flex items-center justify-between text-[11px] text-neutral-400">
+              <span className="truncate">
+                💡 Tip: Double-click or hold volume button to quick-switch anytime
+              </span>
+              <button
+                type="button"
+                onClick={handleReturnFromSoundSelector}
+                className="px-3.5 py-1.5 rounded-lg bg-amber-400 text-neutral-950 font-bold hover:bg-amber-300 transition-colors text-xs shrink-0 flex items-center gap-1.5 cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.3)]"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>Return to Dial (Sound ON)</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>

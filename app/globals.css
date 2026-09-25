@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+html,
+body {
+  width: 100%;
+  max-width: 100vw;
+  height: 100%;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Enforce 16px font size on inputs to prevent iOS Safari auto-zooming and viewport distortion */
+input[type="text"],
+input[type="search"],
+input {
+  font-size: 16px !important;
+}
+
 @keyframes dialCenterPulse {
   0%, 100% {
     box-shadow: 0 0 25px rgba(56, 189, 248, 0.28), 0 0 50px rgba(14, 165, 233, 0.12), inset 0 0 16px rgba(56, 189, 248, 0.08);
