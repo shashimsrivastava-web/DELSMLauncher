@@ -526,6 +526,51 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
   },
 };
 
+// Synthesizes a high-fidelity 16-bit PCM WAV mechanical ratchet click data URL for instant HTML5 fallback
+function createClickWavUrl(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const sampleRate = 22050;
+    const duration = 0.045; // 45ms duration
+    const numSamples = Math.floor(sampleRate * duration);
+    const buffer = new ArrayBuffer(44 + numSamples * 2);
+    const view = new DataView(buffer);
+
+    // RIFF identifier
+    view.setUint32(0, 0x52494646, false); // 'RIFF'
+    view.setUint32(4, 36 + numSamples * 2, true);
+    view.setUint32(8, 0x57415645, false); // 'WAVE'
+    // fmt chunk
+    view.setUint32(12, 0x666d7420, false); // 'fmt '
+    view.setUint32(16, 16, true); // Subchunk1Size
+    view.setUint16(20, 1, true); // AudioFormat (1 = PCM)
+    view.setUint16(22, 1, true); // NumChannels (1 = mono)
+    view.setUint32(24, sampleRate, true); // SampleRate
+    view.setUint32(28, sampleRate * 2, true); // ByteRate
+    view.setUint16(32, 2, true); // BlockAlign
+    view.setUint16(34, 16, true); // BitsPerSample
+    // data chunk
+    view.setUint32(36, 0x64617461, false); // 'data'
+    view.setUint32(40, numSamples * 2, true);
+
+    // Generate crisp metallic transient click + friction noise
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      const decay = Math.exp(-t / 0.012);
+      const freq = 1600 * Math.exp(-t / 0.008) + 180;
+      const tone = Math.sin(2 * Math.PI * freq * t);
+      const noise = (Math.random() * 2 - 1) * Math.exp(-t / 0.006);
+      const sample = Math.max(-1, Math.min(1, tone * 0.72 + noise * 0.45)) * decay;
+      view.setInt16(44 + i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+    }
+
+    const blob = new Blob([buffer], { type: 'audio/wav' });
+    return URL.createObjectURL(blob);
+  } catch {
+    return '';
+  }
+}
+
 export default function RotatingDial() {
   const [activeDialKey, setActiveDialKey] = useState<DialKey>('main');
   const [searchQuery, setSearchQuery] = useState('');
@@ -551,6 +596,25 @@ export default function RotatingDial() {
   // Web Audio Context for authentic mechanical dial clicks
   const audioCtxRef = useRef<AudioContext | null>(null);
 
+  // HTML5 audio fallback pool for zero-latency, infallible playback even when Web Audio is suspended
+  const fallbackAudioPoolRef = useRef<HTMLAudioElement[]>([]);
+  const fallbackAudioIndexRef = useRef(0);
+
+  const playFallbackAudio = useCallback(() => {
+    if (isMuted) return;
+    try {
+      const pool = fallbackAudioPoolRef.current;
+      if (pool.length > 0) {
+        const audio = pool[fallbackAudioIndexRef.current % pool.length];
+        fallbackAudioIndexRef.current++;
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+      }
+    } catch {
+      // Ignore
+    }
+  }, [isMuted]);
+
   // Subtle mobile haptic vibration feedback on snap or item click
   const triggerHapticFeedback = useCallback((pattern: number | number[] = 14) => {
     try {
@@ -562,8 +626,8 @@ export default function RotatingDial() {
     }
   }, []);
 
-  // Dedicated helper to instantiate and fully wake audio engine on mobile
-  const ensureAudioUnlocked = useCallback(() => {
+  // Dedicated helper to instantiate and fully wake audio engine
+  const ensureAudioUnlocked = useCallback(async () => {
     try {
       if (typeof window === 'undefined') return;
       const AudioCtx =
@@ -577,7 +641,7 @@ export default function RotatingDial() {
 
       const ctx = audioCtxRef.current;
       if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
+        await ctx.resume().catch(() => {});
       }
 
       // iOS Safari requires playing a tiny silent buffer inside a user gesture event to fully activate output
@@ -591,127 +655,216 @@ export default function RotatingDial() {
     }
   }, []);
 
-  // Unlock audio context eagerly on the very first touch/click/pointer interaction
+  // Play realistic mechanical dial click sound with HIGH volume output
+  const playMechanicalClick = useCallback(
+    (direction: 'up' | 'down' = 'down') => {
+      // Fire haptic vibration synchronously on snap
+      triggerHapticFeedback();
+
+      if (isMuted) return;
+
+      const renderWebAudioClick = (ctx: AudioContext) => {
+        try {
+          const now = ctx.currentTime;
+
+          // Master output volume set to HIGH (0.95)
+          const masterGain = ctx.createGain();
+          masterGain.gain.setValueAtTime(0.95, now);
+          masterGain.connect(ctx.destination);
+
+          // 1. Mechanical metallic "snap" transient oscillator (loud crisp impact)
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          // Slightly different pitch for up vs down rotation, mimicking ratchet teeth
+          const baseFreq = direction === 'down' ? 1480 : 1720;
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(baseFreq, now);
+          osc.frequency.exponentialRampToValueAtTime(160, now + 0.042);
+
+          // High volume envelope for prominent mechanical presence
+          gain.gain.setValueAtTime(0.01, now);
+          gain.gain.linearRampToValueAtTime(0.65, now + 0.002);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.042);
+
+          // 2. High-frequency friction noise burst (mechanical detent friction)
+          const bufferSize = Math.floor(ctx.sampleRate * 0.026);
+          const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+          const output = noiseBuffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.28));
+          }
+
+          const whiteNoise = ctx.createBufferSource();
+          whiteNoise.buffer = noiseBuffer;
+
+          const noiseFilter = ctx.createBiquadFilter();
+          noiseFilter.type = 'bandpass';
+          noiseFilter.frequency.setValueAtTime(2600, now);
+          noiseFilter.Q.setValueAtTime(2.8, now);
+
+          const noiseGain = ctx.createGain();
+          noiseGain.gain.setValueAtTime(0.45, now);
+          noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.026);
+
+          // 3. Low-frequency hollow body resonance (heavy rotary drum chassis)
+          const lowOsc = ctx.createOscillator();
+          const lowGain = ctx.createGain();
+          lowOsc.type = 'sine';
+          lowOsc.frequency.setValueAtTime(220, now);
+          lowOsc.frequency.exponentialRampToValueAtTime(50, now + 0.06);
+
+          lowGain.gain.setValueAtTime(0.38, now);
+          lowGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+
+          // Connect components into masterGain
+          osc.connect(gain);
+          gain.connect(masterGain);
+
+          whiteNoise.connect(noiseFilter);
+          noiseFilter.connect(noiseGain);
+          noiseGain.connect(masterGain);
+
+          lowOsc.connect(lowGain);
+          lowGain.connect(masterGain);
+
+          osc.start(now);
+          whiteNoise.start(now);
+          lowOsc.start(now);
+
+          osc.stop(now + 0.045);
+          whiteNoise.stop(now + 0.028);
+          lowOsc.stop(now + 0.065);
+        } catch {
+          playFallbackAudio();
+        }
+      };
+
+      try {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!AudioCtx) {
+          playFallbackAudio();
+          return;
+        }
+
+        if (!audioCtxRef.current) {
+          audioCtxRef.current = new AudioCtx();
+        }
+
+        const ctx = audioCtxRef.current;
+
+        if (ctx.state === 'running') {
+          renderWebAudioClick(ctx);
+        } else {
+          // If suspended due to browser policy, resume and play as soon as active
+          ctx
+            .resume()
+            .then(() => {
+              renderWebAudioClick(ctx);
+            })
+            .catch(() => {
+              playFallbackAudio();
+            });
+          // Also immediately fire fallback audio so user interaction is never silent
+          playFallbackAudio();
+        }
+      } catch {
+        playFallbackAudio();
+      }
+    },
+    [isMuted, triggerHapticFeedback, playFallbackAudio]
+  );
+
+  // Force sound on initial launch and unlock audio context across all initial user interaction vectors
   useEffect(() => {
-    const handleFirstUserInteraction = () => {
-      ensureAudioUnlocked();
+    // Initialize HTML5 fallback audio pool
+    if (typeof window !== 'undefined') {
+      try {
+        const wavUrl = createClickWavUrl();
+        if (wavUrl) {
+          fallbackAudioPoolRef.current = [
+            new Audio(wavUrl),
+            new Audio(wavUrl),
+            new Audio(wavUrl),
+          ];
+          fallbackAudioPoolRef.current.forEach((el) => {
+            el.volume = 0.95;
+            el.preload = 'auto';
+          });
+        }
+      } catch {
+        // Fallback initialization
+      }
+    }
+
+    let hasAutoWoken = false;
+
+    // Eager attempt to wake audio and force welcome mechanical sound on initial page load
+    const attemptEagerWake = async () => {
+      try {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!AudioCtx) return;
+
+        if (!audioCtxRef.current) {
+          audioCtxRef.current = new AudioCtx();
+        }
+
+        const ctx = audioCtxRef.current;
+        if (ctx.state === 'suspended') {
+          await ctx.resume().catch(() => {});
+        }
+
+        if (ctx.state === 'running' && !hasAutoWoken) {
+          hasAutoWoken = true;
+          // Successfully allowed by browser: force initial crisp ratchet sound!
+          playMechanicalClick('down');
+        }
+      } catch {
+        // Browser autoplay policy holds audio until first interaction
+      }
     };
 
-    // Capture on all initial touch/click vectors across window and document
-    const options = { capture: true, passive: true };
-    window.addEventListener('touchstart', handleFirstUserInteraction, options);
-    window.addEventListener('touchend', handleFirstUserInteraction, options);
-    window.addEventListener('pointerdown', handleFirstUserInteraction, options);
-    window.addEventListener('click', handleFirstUserInteraction, options);
-    window.addEventListener('keydown', handleFirstUserInteraction, options);
+    attemptEagerWake();
+
+    // Universal gesture handler to immediately unlock and force mechanical click on very first user interaction
+    const handleFirstGestureUnlock = () => {
+      if (!hasAutoWoken) {
+        hasAutoWoken = true;
+        ensureAudioUnlocked();
+        playFallbackAudio();
+      }
+      cleanup();
+    };
+
+    const cleanup = () => {
+      window.removeEventListener('pointerdown', handleFirstGestureUnlock, true);
+      window.removeEventListener('mousedown', handleFirstGestureUnlock, true);
+      window.removeEventListener('touchstart', handleFirstGestureUnlock, true);
+      window.removeEventListener('touchend', handleFirstGestureUnlock, true);
+      window.removeEventListener('click', handleFirstGestureUnlock, true);
+      window.removeEventListener('keydown', handleFirstGestureUnlock, true);
+      window.removeEventListener('wheel', handleFirstGestureUnlock, true);
+      window.removeEventListener('scroll', handleFirstGestureUnlock, true);
+    };
+
+    const captureOptions = { capture: true, passive: true };
+    window.addEventListener('pointerdown', handleFirstGestureUnlock, captureOptions);
+    window.addEventListener('mousedown', handleFirstGestureUnlock, captureOptions);
+    window.addEventListener('touchstart', handleFirstGestureUnlock, captureOptions);
+    window.addEventListener('touchend', handleFirstGestureUnlock, captureOptions);
+    window.addEventListener('click', handleFirstGestureUnlock, captureOptions);
+    window.addEventListener('keydown', handleFirstGestureUnlock, captureOptions);
+    window.addEventListener('wheel', handleFirstGestureUnlock, captureOptions);
+    window.addEventListener('scroll', handleFirstGestureUnlock, captureOptions);
 
     return () => {
-      window.removeEventListener('touchstart', handleFirstUserInteraction, options);
-      window.removeEventListener('touchend', handleFirstUserInteraction, options);
-      window.removeEventListener('pointerdown', handleFirstUserInteraction, options);
-      window.removeEventListener('click', handleFirstUserInteraction, options);
-      window.removeEventListener('keydown', handleFirstUserInteraction, options);
+      cleanup();
     };
-  }, [ensureAudioUnlocked]);
-
-  // Play realistic mechanical dial click sound with HIGH volume output
-  const playMechanicalClick = useCallback((direction: 'up' | 'down' = 'down') => {
-    // Fire haptic vibration synchronously on snap
-    triggerHapticFeedback();
-
-    if (isMuted) return;
-
-    try {
-      const AudioCtx =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
-
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioCtx();
-      }
-
-      const ctx = audioCtxRef.current;
-
-      // Always ensure state is resumed (critical for iOS Safari and Android Chrome)
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
-      }
-
-      const now = ctx.currentTime;
-
-      // Master output volume set to HIGH (0.92)
-      const masterGain = ctx.createGain();
-      masterGain.gain.setValueAtTime(0.92, now);
-      masterGain.connect(ctx.destination);
-
-      // 1. Mechanical metallic "snap" transient oscillator (loud crisp impact)
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      // Slightly different pitch for up vs down rotation, mimicking ratchet teeth
-      const baseFreq = direction === 'down' ? 1480 : 1720;
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(baseFreq, now);
-      osc.frequency.exponentialRampToValueAtTime(160, now + 0.042);
-
-      // High volume envelope for prominent mechanical presence
-      gain.gain.setValueAtTime(0.01, now);
-      gain.gain.linearRampToValueAtTime(0.58, now + 0.002);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.042);
-
-      // 2. High-frequency friction noise burst (mechanical detent friction)
-      const bufferSize = Math.floor(ctx.sampleRate * 0.026);
-      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const output = noiseBuffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.28));
-      }
-
-      const whiteNoise = ctx.createBufferSource();
-      whiteNoise.buffer = noiseBuffer;
-
-      const noiseFilter = ctx.createBiquadFilter();
-      noiseFilter.type = 'bandpass';
-      noiseFilter.frequency.setValueAtTime(2600, now);
-      noiseFilter.Q.setValueAtTime(2.8, now);
-
-      const noiseGain = ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.42, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.026);
-
-      // 3. Low-frequency hollow body resonance (heavy rotary drum chassis)
-      const lowOsc = ctx.createOscillator();
-      const lowGain = ctx.createGain();
-      lowOsc.type = 'sine';
-      lowOsc.frequency.setValueAtTime(220, now);
-      lowOsc.frequency.exponentialRampToValueAtTime(50, now + 0.06);
-
-      lowGain.gain.setValueAtTime(0.35, now);
-      lowGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
-
-      // Connect components into masterGain
-      osc.connect(gain);
-      gain.connect(masterGain);
-
-      whiteNoise.connect(noiseFilter);
-      noiseFilter.connect(noiseGain);
-      noiseGain.connect(masterGain);
-
-      lowOsc.connect(lowGain);
-      lowGain.connect(masterGain);
-
-      osc.start(now);
-      whiteNoise.start(now);
-      lowOsc.start(now);
-
-      osc.stop(now + 0.045);
-      whiteNoise.stop(now + 0.028);
-      lowOsc.stop(now + 0.065);
-    } catch {
-      // Audio autoplay or permissions handled gracefully
-    }
-  }, [isMuted, triggerHapticFeedback]);
+  }, [playMechanicalClick, ensureAudioUnlocked, playFallbackAudio]);
 
   // Explicit user activation from the top-right loudspeaker button
   const handleLoudspeakerClick = useCallback(
@@ -719,7 +872,11 @@ export default function RotatingDial() {
       e.stopPropagation();
       setHasInteractedSound(true);
 
-      if (isMuted) {
+      const isContextSuspended =
+        !audioCtxRef.current || audioCtxRef.current.state === 'suspended';
+
+      // If user clicked the button while muted OR if browser had suspended the audio context on first run
+      if (isMuted || isContextSuspended) {
         // Unmute and immediately wake audio engine
         ensureAudioUnlocked();
         setIsMuted(false);
@@ -727,9 +884,9 @@ export default function RotatingDial() {
         // Play an immediate sample click so the user immediately hears it working
         setTimeout(() => {
           playMechanicalClick('down');
-        }, 50);
+        }, 30);
       } else {
-        // Mute (clicking twice/toggling off)
+        // Only mute if already active and running
         setIsMuted(true);
         showToast('Mechanical Dial Sound: MUTED 🔇 (Click again to turn ON)');
       }
@@ -970,6 +1127,7 @@ export default function RotatingDial() {
       wheelAccumulator.current += e.deltaY;
 
       if (Math.abs(wheelAccumulator.current) > 55) {
+        ensureAudioUnlocked();
         if (wheelAccumulator.current > 0) {
           rotateDown();
         } else {
@@ -982,7 +1140,7 @@ export default function RotatingDial() {
 
     container.addEventListener('wheel', handleWheelEvent, { passive: false });
     return () => container.removeEventListener('wheel', handleWheelEvent);
-  }, [rotateDown, rotateUp]);
+  }, [rotateDown, rotateUp, ensureAudioUnlocked]);
 
   // Unified, buttery-smooth pointer events with physical momentum glide
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -1114,6 +1272,7 @@ export default function RotatingDial() {
   };
 
   const handleAction = (item: DialLinkItem, slotOffset: number, e: React.MouseEvent) => {
+    ensureAudioUnlocked();
     if (hasDragged.current) {
       e.preventDefault();
       e.stopPropagation();
