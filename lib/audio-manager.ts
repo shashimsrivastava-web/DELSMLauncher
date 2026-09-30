@@ -1,18 +1,25 @@
 // Universal Web Audio Singleton & Interaction Auto-Unlocker
-// Bypasses browser autoplay policies on first touch/click and persists audio preferences across page sessions.
+// Bypasses browser autoplay policies on first touch/click, forces auto-play activation,
+// and ensures audio state persists across page sessions & refreshes.
 
 let globalAudioCtx: AudioContext | null = null;
-let isUnlocked = false;
-let unlockPromise: Promise<AudioContext | null> | null = null;
+let isAudioEngineUnlocked = false;
 
 const STORAGE_KEY_MUTED = 'delsm_dial_is_muted';
 const STORAGE_KEY_THEME = 'delsm_dial_sound_theme';
+
+// Silent 44.1kHz 1-sample WAV Data URI for unlocking HTML5 media playback hardware
+const SILENT_WAV_DATA_URI =
+  'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
+
+let fallbackAudioElement: HTMLAudioElement | null = null;
 
 export function getStoredMuteState(): boolean {
   if (typeof window === 'undefined') return false;
   try {
     const val = localStorage.getItem(STORAGE_KEY_MUTED);
-    return val === 'true'; // Default is false (Sound Active)
+    // Explicitly check for 'true'. If unset or anything else, default is FALSE (Sound Active)
+    return val === 'true';
   } catch {
     return false;
   }
@@ -57,7 +64,11 @@ export function getSharedAudioContext(): AudioContext | null {
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (AudioCtx) {
-      globalAudioCtx = new AudioCtx();
+      try {
+        globalAudioCtx = new AudioCtx({ latencyHint: 'interactive' });
+      } catch {
+        globalAudioCtx = new AudioCtx();
+      }
     }
   }
 
@@ -65,22 +76,9 @@ export function getSharedAudioContext(): AudioContext | null {
 }
 
 /**
- * Forces Web Audio to initialize and unlock on a user gesture call-stack.
- * Starts a synchronous silent buffer and ensures AudioContext transitions to 'running'.
+ * Synchronously plays an inaudible audio buffer to wake the hardware DAC on iOS WebKit & Android Chrome.
  */
-export function unlockAudioContext(): Promise<AudioContext | null> {
-  const ctx = getSharedAudioContext();
-  if (!ctx) return Promise.resolve(null);
-
-  if (ctx.state === 'running' && isUnlocked) {
-    return Promise.resolve(ctx);
-  }
-
-  if (unlockPromise) {
-    return unlockPromise;
-  }
-
-  // Synchronous hardware audio wake: iOS Safari & Chrome Mobile require a bufferSource started directly in gesture
+export function wakeAudioHardware(ctx: AudioContext): void {
   try {
     const buffer = ctx.createBuffer(1, 1, 22050);
     const source = ctx.createBufferSource();
@@ -88,65 +86,172 @@ export function unlockAudioContext(): Promise<AudioContext | null> {
     source.connect(ctx.destination);
     source.start(0);
   } catch {
-    // Buffer fallback
+    // Ignore hardware buffer start errors
   }
-
-  unlockPromise = ctx
-    .resume()
-    .then(() => {
-      isUnlocked = true;
-      unlockPromise = null;
-      return ctx;
-    })
-    .catch(() => {
-      unlockPromise = null;
-      return ctx;
-    });
-
-  return unlockPromise;
 }
 
 /**
- * Attaches passive global listeners on the first user interaction to unlock the audio pipeline.
+ * Plays a silent HTML5 Audio element to unlock the device media pipeline (dual WebAudio + HTML5 unlock).
+ */
+export function unlockMediaElement(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!fallbackAudioElement) {
+      fallbackAudioElement = new Audio(SILENT_WAV_DATA_URI);
+      fallbackAudioElement.volume = 0.01;
+      fallbackAudioElement.preload = 'auto';
+    }
+    const playPromise = fallbackAudioElement.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          if (fallbackAudioElement) {
+            fallbackAudioElement.pause();
+            fallbackAudioElement.currentTime = 0;
+          }
+        })
+        .catch(() => {
+          // Autoplay policy handled on next user gesture
+        });
+    }
+  } catch {
+    // Safe boundary
+  }
+}
+
+/**
+ * Forces Web Audio to initialize and unlock synchronously during any user interaction event.
+ * Re-invokes resume() directly on the gesture call stack without getting blocked by stale promises.
+ */
+export function unlockAudioContext(): Promise<AudioContext | null> {
+  const ctx = getSharedAudioContext();
+  if (!ctx) return Promise.resolve(null);
+
+  // Wake hardware synchronously in the current gesture callstack
+  wakeAudioHardware(ctx);
+  unlockMediaElement();
+
+  if (ctx.state === 'running') {
+    isAudioEngineUnlocked = true;
+    return Promise.resolve(ctx);
+  }
+
+  // Directly call resume() synchronously on the context
+  return ctx
+    .resume()
+    .then(() => {
+      isAudioEngineUnlocked = true;
+      wakeAudioHardware(ctx);
+      return ctx;
+    })
+    .catch(() => {
+      return ctx;
+    });
+}
+
+/**
+ * Automatically cycles mute/unmute to force the browser audio subsystem to activate
+ * on launch, refresh, and first user interaction.
+ */
+export function forceAutoPlayOrMuteUnmuteCycle(onActivated?: () => void): void {
+  if (typeof window === 'undefined') return;
+
+  const isUserExplicitlyMuted = getStoredMuteState();
+
+  // 1. Instantly wake the Web Audio context & HTML5 audio pipeline
+  const ctx = getSharedAudioContext();
+  if (ctx) {
+    wakeAudioHardware(ctx);
+    if (ctx.state !== 'running') {
+      ctx.resume().catch(() => {});
+    }
+  }
+  unlockMediaElement();
+
+  // 2. If user hasn't explicitly muted, ensure persistent state is active (unmuted)
+  if (!isUserExplicitlyMuted) {
+    setStoredMuteState(false);
+    isAudioEngineUnlocked = true;
+    if (onActivated) {
+      onActivated();
+    }
+  }
+}
+
+/**
+ * Attaches high-priority capturing event listeners on all primary user interactions
+ * (touch, pointer, click, keydown, wheel, scroll) to force audio initialization immediately
+ * on the first user interaction, bypassing mobile autoplay restrictions.
  */
 export function initUserInteractionAudioUnlock(onUnlocked?: () => void): () => void {
   if (typeof window === 'undefined') return () => {};
 
+  // Eagerly try to wake on initialization
+  forceAutoPlayOrMuteUnmuteCycle(onUnlocked);
+
+  let hasTriggered = false;
+
   const handleInteraction = () => {
-    unlockAudioContext().then(() => {
-      if (globalAudioCtx && globalAudioCtx.state === 'running') {
-        if (onUnlocked) onUnlocked();
-        removeListeners();
+    // Synchronously unlock and resume on every gesture
+    unlockAudioContext().then((ctx) => {
+      if (ctx && ctx.state === 'running') {
+        isAudioEngineUnlocked = true;
+        if (!hasTriggered && onUnlocked) {
+          hasTriggered = true;
+          onUnlocked();
+        }
       }
     });
   };
 
   const removeListeners = () => {
-    window.removeEventListener('touchstart', handleInteraction, true);
-    window.removeEventListener('touchend', handleInteraction, true);
-    window.removeEventListener('touchmove', handleInteraction, true);
-    window.removeEventListener('pointerdown', handleInteraction, true);
-    window.removeEventListener('pointermove', handleInteraction, true);
-    window.removeEventListener('mousedown', handleInteraction, true);
-    window.removeEventListener('click', handleInteraction, true);
-    window.removeEventListener('keydown', handleInteraction, true);
-    window.removeEventListener('wheel', handleInteraction, true);
-    document.removeEventListener('touchstart', handleInteraction, true);
-    document.removeEventListener('pointerdown', handleInteraction, true);
+    const events = [
+      'touchstart',
+      'touchend',
+      'touchmove',
+      'pointerdown',
+      'pointerup',
+      'pointermove',
+      'mousedown',
+      'mouseup',
+      'click',
+      'keydown',
+      'wheel',
+      'scroll',
+    ];
+
+    events.forEach((evt) => {
+      window.removeEventListener(evt, handleInteraction, true);
+      document.removeEventListener(evt, handleInteraction, true);
+      if (document.body) {
+        document.body.removeEventListener(evt, handleInteraction, true);
+      }
+    });
   };
 
-  const captureOpts = { capture: true, passive: true };
-  window.addEventListener('touchstart', handleInteraction, captureOpts);
-  window.addEventListener('touchend', handleInteraction, captureOpts);
-  window.addEventListener('touchmove', handleInteraction, captureOpts);
-  window.addEventListener('pointerdown', handleInteraction, captureOpts);
-  window.addEventListener('pointermove', handleInteraction, captureOpts);
-  window.addEventListener('mousedown', handleInteraction, captureOpts);
-  window.addEventListener('click', handleInteraction, captureOpts);
-  window.addEventListener('keydown', handleInteraction, captureOpts);
-  window.addEventListener('wheel', handleInteraction, captureOpts);
-  document.addEventListener('touchstart', handleInteraction, captureOpts);
-  document.addEventListener('pointerdown', handleInteraction, captureOpts);
+  const captureOpts: AddEventListenerOptions = { capture: true, passive: true };
+  const events = [
+    'touchstart',
+    'touchend',
+    'touchmove',
+    'pointerdown',
+    'pointerup',
+    'pointermove',
+    'mousedown',
+    'mouseup',
+    'click',
+    'keydown',
+    'wheel',
+    'scroll',
+  ];
+
+  events.forEach((evt) => {
+    window.addEventListener(evt, handleInteraction, captureOpts);
+    document.addEventListener(evt, handleInteraction, captureOpts);
+    if (document.body) {
+      document.body.addEventListener(evt, handleInteraction, captureOpts);
+    }
+  });
 
   // Focus and visibility restoration
   const handleVisibility = () => {

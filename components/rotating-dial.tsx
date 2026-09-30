@@ -7,6 +7,9 @@ import StarTrekBackground from './star-trek-background';
 import {
   getSharedAudioContext,
   unlockAudioContext,
+  wakeAudioHardware,
+  unlockMediaElement,
+  forceAutoPlayOrMuteUnmuteCycle,
   initUserInteractionAudioUnlock,
   getStoredMuteState,
   setStoredMuteState,
@@ -1306,6 +1309,7 @@ export default function RotatingDial() {
 
   // Dedicated helper to instantiate and wake audio engine cleanly on user interactions
   const ensureAudioUnlocked = useCallback(() => {
+    forceAutoPlayOrMuteUnmuteCycle();
     unlockAudioContext();
   }, []);
 
@@ -1331,15 +1335,16 @@ export default function RotatingDial() {
         const ctx = getSharedAudioContext();
         if (!ctx) return;
 
-        if (ctx.state === 'running') {
-          renderSoundTheme(ctx, themeIdToPlay, direction);
-        } else {
-          unlockAudioContext().then((unlockedCtx) => {
-            if (unlockedCtx && unlockedCtx.state === 'running') {
-              renderSoundTheme(unlockedCtx, themeIdToPlay, direction);
-            }
-          });
+        // Wake hardware synchronously on the gesture call stack
+        wakeAudioHardware(ctx);
+
+        if (ctx.state !== 'running') {
+          ctx.resume().catch(() => {});
+          unlockAudioContext();
         }
+
+        // Render sound synthesis immediately — Web Audio queues and outputs without dropped frames
+        renderSoundTheme(ctx, themeIdToPlay, direction);
       } catch {
         // Safe error boundary
       }
@@ -1401,10 +1406,20 @@ export default function RotatingDial() {
     }, 45);
   }, [ensureAudioUnlocked, playDialSound]);
 
-  // Universal User-Interaction Listener: forces audio initialization on first touch/click event, bypassing autoplay
+  // Universal User-Interaction Listener: forces audio initialization on launch and first touch/click event, bypassing autoplay
   useEffect(() => {
+    // Force mute/unmute audio pipeline wake on mount
+    forceAutoPlayOrMuteUnmuteCycle(() => {
+      if (!getStoredMuteState()) {
+        setIsMuted(false);
+      }
+    });
+
     const cleanup = initUserInteractionAudioUnlock(() => {
       // Audio pipeline successfully unlocked by first user gesture
+      if (!getStoredMuteState()) {
+        setIsMuted(false);
+      }
     });
     return cleanup;
   }, []);
