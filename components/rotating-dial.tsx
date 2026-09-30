@@ -1305,7 +1305,7 @@ export default function RotatingDial() {
   }, []);
 
   // Dedicated helper to instantiate and wake audio engine cleanly without flooding promises
-  const ensureAudioUnlocked = useCallback(async () => {
+  const ensureAudioUnlocked = useCallback(() => {
     try {
       if (typeof window === 'undefined') return;
       const AudioCtx =
@@ -1318,25 +1318,22 @@ export default function RotatingDial() {
       }
 
       const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended' && !isAudioResumingRef.current) {
-        isAudioResumingRef.current = true;
-        try {
-          await ctx.resume();
-        } finally {
-          isAudioResumingRef.current = false;
-        }
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
       }
 
-      // iOS Safari requires a micro silent buffer on initial gesture
-      if (ctx.state === 'running') {
+      // Synchronous micro silent buffer to immediately wake hardware audio pipeline on mobile iOS/Android
+      try {
         const silentBuffer = ctx.createBuffer(1, 1, 22050);
         const source = ctx.createBufferSource();
         source.buffer = silentBuffer;
         source.connect(ctx.destination);
         source.start(0);
+      } catch {
+        // Safe buffer fallback
       }
     } catch {
-      isAudioResumingRef.current = false;
+      // Audio unlock error boundary
     }
   }, []);
 
@@ -1373,18 +1370,12 @@ export default function RotatingDial() {
         if (ctx.state === 'running') {
           renderSoundTheme(ctx, themeIdToPlay, direction);
         } else if (ctx.state === 'suspended') {
-          if (!isAudioResumingRef.current) {
-            isAudioResumingRef.current = true;
-            ctx
-              .resume()
-              .then(() => {
-                isAudioResumingRef.current = false;
-                renderSoundTheme(ctx, themeIdToPlay, direction);
-              })
-              .catch(() => {
-                isAudioResumingRef.current = false;
-              });
-          }
+          ctx
+            .resume()
+            .then(() => {
+              renderSoundTheme(ctx, themeIdToPlay, direction);
+            })
+            .catch(() => {});
         }
       } catch {
         // Safe error boundary
@@ -1455,7 +1446,10 @@ export default function RotatingDial() {
 
   // Audio lifecycle and window visibility management: ensures immediate responsiveness on load and tab switches
   useEffect(() => {
-    // Universal gesture handler to immediately wake and unlock Web Audio on first user interaction
+    // Eagerly initialize and attempt wake on app launch
+    ensureAudioUnlocked();
+
+    // Universal gesture handler to immediately wake and unlock Web Audio on first user interaction (especially on mobile)
     const handleFirstGestureUnlock = () => {
       ensureAudioUnlocked();
       cleanupGestureListeners();
@@ -1465,20 +1459,26 @@ export default function RotatingDial() {
       window.removeEventListener('pointerdown', handleFirstGestureUnlock, true);
       window.removeEventListener('mousedown', handleFirstGestureUnlock, true);
       window.removeEventListener('touchstart', handleFirstGestureUnlock, true);
+      window.removeEventListener('touchmove', handleFirstGestureUnlock, true);
       window.removeEventListener('touchend', handleFirstGestureUnlock, true);
       window.removeEventListener('click', handleFirstGestureUnlock, true);
       window.removeEventListener('keydown', handleFirstGestureUnlock, true);
       window.removeEventListener('wheel', handleFirstGestureUnlock, true);
+      document.removeEventListener('touchstart', handleFirstGestureUnlock, true);
+      document.removeEventListener('pointerdown', handleFirstGestureUnlock, true);
     };
 
     const captureOptions = { capture: true, passive: true };
     window.addEventListener('pointerdown', handleFirstGestureUnlock, captureOptions);
     window.addEventListener('mousedown', handleFirstGestureUnlock, captureOptions);
     window.addEventListener('touchstart', handleFirstGestureUnlock, captureOptions);
+    window.addEventListener('touchmove', handleFirstGestureUnlock, captureOptions);
     window.addEventListener('touchend', handleFirstGestureUnlock, captureOptions);
     window.addEventListener('click', handleFirstGestureUnlock, captureOptions);
     window.addEventListener('keydown', handleFirstGestureUnlock, captureOptions);
     window.addEventListener('wheel', handleFirstGestureUnlock, captureOptions);
+    document.addEventListener('touchstart', handleFirstGestureUnlock, captureOptions);
+    document.addEventListener('pointerdown', handleFirstGestureUnlock, captureOptions);
 
     // Visibility and window focus listener to handle tab switching seamlessly without lag
     const handleVisibilityOrFocus = () => {
