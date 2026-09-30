@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { ArrowUpRight, ChevronRight, ArrowLeft, Clock, Search, X, Layers, Volume2, VolumeX, RotateCw, RotateCcw, Check } from 'lucide-react';
+import StarTrekBackground from './star-trek-background';
 
 export type LinkItemType = 'link' | 'dial' | 'disabled' | 'back';
 export type DialKey = 'main' | 'checklists' | 'dgr' | 'ops' | 'll';
@@ -1376,6 +1377,8 @@ export default function RotatingDial() {
               renderSoundTheme(ctx, themeIdToPlay, direction);
             })
             .catch(() => {});
+          // Immediately try rendering as well in case resume took effect synchronously
+          renderSoundTheme(ctx, themeIdToPlay, direction);
         }
       } catch {
         // Safe error boundary
@@ -1444,41 +1447,43 @@ export default function RotatingDial() {
     }, 45);
   }, [ensureAudioUnlocked, playDialSound]);
 
-  // Audio lifecycle and window visibility management: ensures immediate responsiveness on load and tab switches
+  // Audio lifecycle and window visibility management: ensures immediate responsiveness on load, refresh, and tab switches
   useEffect(() => {
     // Eagerly initialize and attempt wake on app launch
     ensureAudioUnlocked();
 
-    // Universal gesture handler to immediately wake and unlock Web Audio on first user interaction (especially on mobile)
-    const handleFirstGestureUnlock = () => {
+    // Universal gesture handler to immediately wake and unlock Web Audio on user interactions
+    const handleGestureUnlock = () => {
       ensureAudioUnlocked();
-      cleanupGestureListeners();
+      if (audioCtxRef.current && audioCtxRef.current.state === 'running') {
+        cleanupGestureListeners();
+      }
     };
 
     const cleanupGestureListeners = () => {
-      window.removeEventListener('pointerdown', handleFirstGestureUnlock, true);
-      window.removeEventListener('mousedown', handleFirstGestureUnlock, true);
-      window.removeEventListener('touchstart', handleFirstGestureUnlock, true);
-      window.removeEventListener('touchmove', handleFirstGestureUnlock, true);
-      window.removeEventListener('touchend', handleFirstGestureUnlock, true);
-      window.removeEventListener('click', handleFirstGestureUnlock, true);
-      window.removeEventListener('keydown', handleFirstGestureUnlock, true);
-      window.removeEventListener('wheel', handleFirstGestureUnlock, true);
-      document.removeEventListener('touchstart', handleFirstGestureUnlock, true);
-      document.removeEventListener('pointerdown', handleFirstGestureUnlock, true);
+      window.removeEventListener('pointerdown', handleGestureUnlock, true);
+      window.removeEventListener('mousedown', handleGestureUnlock, true);
+      window.removeEventListener('touchstart', handleGestureUnlock, true);
+      window.removeEventListener('touchmove', handleGestureUnlock, true);
+      window.removeEventListener('touchend', handleGestureUnlock, true);
+      window.removeEventListener('click', handleGestureUnlock, true);
+      window.removeEventListener('keydown', handleGestureUnlock, true);
+      window.removeEventListener('wheel', handleGestureUnlock, true);
+      document.removeEventListener('touchstart', handleGestureUnlock, true);
+      document.removeEventListener('pointerdown', handleGestureUnlock, true);
     };
 
     const captureOptions = { capture: true, passive: true };
-    window.addEventListener('pointerdown', handleFirstGestureUnlock, captureOptions);
-    window.addEventListener('mousedown', handleFirstGestureUnlock, captureOptions);
-    window.addEventListener('touchstart', handleFirstGestureUnlock, captureOptions);
-    window.addEventListener('touchmove', handleFirstGestureUnlock, captureOptions);
-    window.addEventListener('touchend', handleFirstGestureUnlock, captureOptions);
-    window.addEventListener('click', handleFirstGestureUnlock, captureOptions);
-    window.addEventListener('keydown', handleFirstGestureUnlock, captureOptions);
-    window.addEventListener('wheel', handleFirstGestureUnlock, captureOptions);
-    document.addEventListener('touchstart', handleFirstGestureUnlock, captureOptions);
-    document.addEventListener('pointerdown', handleFirstGestureUnlock, captureOptions);
+    window.addEventListener('pointerdown', handleGestureUnlock, captureOptions);
+    window.addEventListener('mousedown', handleGestureUnlock, captureOptions);
+    window.addEventListener('touchstart', handleGestureUnlock, captureOptions);
+    window.addEventListener('touchmove', handleGestureUnlock, captureOptions);
+    window.addEventListener('touchend', handleGestureUnlock, captureOptions);
+    window.addEventListener('click', handleGestureUnlock, captureOptions);
+    window.addEventListener('keydown', handleGestureUnlock, captureOptions);
+    window.addEventListener('wheel', handleGestureUnlock, captureOptions);
+    document.addEventListener('touchstart', handleGestureUnlock, captureOptions);
+    document.addEventListener('pointerdown', handleGestureUnlock, captureOptions);
 
     // Visibility and window focus listener to handle tab switching seamlessly without lag
     const handleVisibilityOrFocus = () => {
@@ -2177,14 +2182,18 @@ export default function RotatingDial() {
   return (
     <main
       ref={containerRef}
+      onTouchStart={ensureAudioUnlocked}
+      onTouchMove={ensureAudioUnlocked}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       tabIndex={0}
       aria-label="3D Vertical Rotating Dial Menu. Use scroll, drag, or arrow keys to rotate."
-      className="fixed inset-0 w-full max-w-full h-full h-[100dvh] overflow-hidden flex flex-col items-center bg-[#07080c] select-none cursor-grab active:cursor-grabbing focus:outline-none touch-none"
+      className="fixed inset-0 w-full max-w-full h-full h-[100dvh] overflow-hidden flex flex-col items-center bg-[#02040a] select-none cursor-grab active:cursor-grabbing focus:outline-none touch-none"
     >
+      {/* Star Trek Deep Space Cosmos Background with Stars, Distant Galaxies & Cruising Starships */}
+      <StarTrekBackground />
       {/* Top Header: Full Screen Width Search Bar + DELSM LaunchPad & Right-Aligned Volume Controller + Quick Switch DIAL Bar */}
       <header className="z-30 w-full max-w-full px-2.5 sm:px-5 pt-2 sm:pt-3 flex flex-col items-center gap-1.5 sm:gap-2 shrink-0">
         {/* 1. Full Screen Width Search Bar with 3D Depth Search Icon right-aligned */}
@@ -2414,17 +2423,10 @@ export default function RotatingDial() {
           </div>
         )}
 
-        {/* 3. Quick Return to Any DIAL Options */}
-        <div className="w-full flex items-center justify-between px-1 text-[11px] font-mono">
-          <div className="flex items-center gap-1.5 text-neutral-400 truncate">
-            <Layers className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
-            <span className="text-neutral-200 font-medium truncate">
-              {isSearchActive ? `Search (${searchResults.length} matches)` : currentDial.title}
-            </span>
-          </div>
-
+        {/* 3. Quick Switch DIAL Bar */}
+        <div className="w-full flex items-center justify-center sm:justify-end px-1 text-[11px] font-mono">
           <div className="flex items-center gap-1 shrink-0">
-            <span className="text-neutral-600 hidden sm:inline mr-1">Switch:</span>
+            <span className="text-neutral-500 hidden sm:inline mr-1">Switch:</span>
             {(['main', 'checklists', 'dgr', 'ops', 'll'] as DialKey[]).map((key) => {
               const isActive = activeDialKey === key && !isSearchActive;
               const labels: Record<DialKey, string> = {
