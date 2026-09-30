@@ -79,93 +79,6 @@ const SPARK_COLORS = ['#38bdf8', '#67e8f9', '#fbbf24', '#f59e0b', '#f43f5e', '#f
 
 export default function StarTrekBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-
-  // Play subtle Star Trek warp flyby audio safely
-  const playShipFlybySound = (direction: 'towards_camera' | 'away_into_depth') => {
-    try {
-      if (typeof window === 'undefined') return;
-      const AudioCtx =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
-
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioCtx();
-      }
-
-      const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
-      }
-      if (ctx.state !== 'running') return;
-
-      const now = ctx.currentTime;
-      const masterGain = ctx.createGain();
-      masterGain.gain.setValueAtTime(0.16, now);
-      masterGain.connect(ctx.destination);
-
-      if (direction === 'towards_camera') {
-        const subOsc = ctx.createOscillator();
-        const subGain = ctx.createGain();
-        subOsc.type = 'sine';
-        subOsc.frequency.setValueAtTime(50, now);
-        subOsc.frequency.exponentialRampToValueAtTime(130, now + 0.5);
-        subOsc.frequency.exponentialRampToValueAtTime(38, now + 1.5);
-
-        subGain.gain.setValueAtTime(0.01, now);
-        subGain.gain.linearRampToValueAtTime(0.32, now + 0.5);
-        subGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.5);
-
-        const noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 1.4), ctx.sampleRate);
-        const data = noiseBuffer.getChannelData(0);
-        for (let i = 0; i < data.length; i++) {
-          data[i] = Math.random() * 2 - 1;
-        }
-        const noise = ctx.createBufferSource();
-        noise.buffer = noiseBuffer;
-
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(160, now);
-        filter.frequency.linearRampToValueAtTime(580, now + 0.5);
-        filter.frequency.exponentialRampToValueAtTime(110, now + 1.4);
-
-        const noiseGain = ctx.createGain();
-        noiseGain.gain.setValueAtTime(0.01, now);
-        noiseGain.gain.linearRampToValueAtTime(0.2, now + 0.5);
-        noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.4);
-
-        subOsc.connect(subGain);
-        subGain.connect(masterGain);
-        noise.connect(filter);
-        filter.connect(noiseGain);
-        noiseGain.connect(masterGain);
-
-        subOsc.start(now);
-        noise.start(now);
-        subOsc.stop(now + 1.55);
-        noise.stop(now + 1.45);
-      } else {
-        const warpOsc = ctx.createOscillator();
-        const warpGain = ctx.createGain();
-        warpOsc.type = 'triangle';
-        warpOsc.frequency.setValueAtTime(170, now);
-        warpOsc.frequency.exponentialRampToValueAtTime(38, now + 1.3);
-
-        warpGain.gain.setValueAtTime(0.25, now);
-        warpGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.3);
-
-        warpOsc.connect(warpGain);
-        warpGain.connect(masterGain);
-
-        warpOsc.start(now);
-        warpOsc.stop(now + 1.35);
-      }
-    } catch {
-      // Safe audio error boundary
-    }
-  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -651,11 +564,6 @@ export default function StarTrekBackground() {
           } else {
             ship.opacity = 0.95;
           }
-
-          if (!ship.hasPlayedSound && ship.z < 450) {
-            ship.hasPlayedSound = true;
-            playShipFlybySound('towards_camera');
-          }
         } else {
           if (ship.z < 180) {
             ship.opacity = Math.min(0.95, (ship.z - 75) / 100);
@@ -663,11 +571,6 @@ export default function StarTrekBackground() {
             ship.opacity = Math.max(0, (980 - ship.z) / 230);
           } else {
             ship.opacity = 0.95;
-          }
-
-          if (!ship.hasPlayedSound && ship.z > 140) {
-            ship.hasPlayedSound = true;
-            playShipFlybySound('away_into_depth');
           }
         }
 

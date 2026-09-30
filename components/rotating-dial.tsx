@@ -4,6 +4,15 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Image from 'next/image';
 import { ArrowUpRight, ChevronRight, ArrowLeft, Clock, Search, X, Layers, Volume2, VolumeX, RotateCw, RotateCcw, Check } from 'lucide-react';
 import StarTrekBackground from './star-trek-background';
+import {
+  getSharedAudioContext,
+  unlockAudioContext,
+  initUserInteractionAudioUnlock,
+  getStoredMuteState,
+  setStoredMuteState,
+  getStoredThemeId,
+  setStoredThemeId,
+} from '@/lib/audio-manager';
 
 export type LinkItemType = 'link' | 'dial' | 'disabled' | 'back';
 export type DialKey = 'main' | 'checklists' | 'dgr' | 'ops' | 'll';
@@ -1250,20 +1259,14 @@ export default function RotatingDial() {
   const [visualOffset, setVisualOffset] = useState(0);
   const step = Math.round(visualOffset);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isMuted, setIsMuted] = useState(false); // Enabled by default on app launch
-  const [hasInteractedSound, setHasInteractedSound] = useState(false); // Controls launch prompt visibility
+  const [isMuted, setIsMuted] = useState<boolean>(() => getStoredMuteState()); // Persisted mute state across sessions
+  const [hasInteractedSound, setHasInteractedSound] = useState(false);
 
-  // 10 Dial Sound Themes management
+  // 10 Dial Sound Themes management (Persisted across sessions)
   const [selectedSoundThemeId, setSelectedSoundThemeId] = useState<SoundThemeId>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('delsm_dial_sound_theme');
-        if (saved && SOUND_THEMES.some((t) => t.id === saved)) {
-          return saved as SoundThemeId;
-        }
-      } catch {
-        // localStorage not available
-      }
+    const stored = getStoredThemeId('mechanical');
+    if (SOUND_THEMES.some((t) => t.id === stored)) {
+      return stored as SoundThemeId;
     }
     return 'mechanical';
   });
@@ -1290,10 +1293,6 @@ export default function RotatingDial() {
     }, 2800);
   }, []);
 
-  // Web Audio Context for authentic mechanical dial clicks
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const isAudioResumingRef = useRef(false);
-
   // Subtle mobile haptic vibration feedback on snap or item click
   const triggerHapticFeedback = useCallback((pattern: number | number[] = 14) => {
     try {
@@ -1305,37 +1304,9 @@ export default function RotatingDial() {
     }
   }, []);
 
-  // Dedicated helper to instantiate and wake audio engine cleanly without flooding promises
+  // Dedicated helper to instantiate and wake audio engine cleanly on user interactions
   const ensureAudioUnlocked = useCallback(() => {
-    try {
-      if (typeof window === 'undefined') return;
-      const AudioCtx =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
-
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioCtx();
-      }
-
-      const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
-      }
-
-      // Synchronous micro silent buffer to immediately wake hardware audio pipeline on mobile iOS/Android
-      try {
-        const silentBuffer = ctx.createBuffer(1, 1, 22050);
-        const source = ctx.createBufferSource();
-        source.buffer = silentBuffer;
-        source.connect(ctx.destination);
-        source.start(0);
-      } catch {
-        // Safe buffer fallback
-      }
-    } catch {
-      // Audio unlock error boundary
-    }
+    unlockAudioContext();
   }, []);
 
   // Play selected dial sound with directional variation (clockwise / anticlockwise)
@@ -1347,6 +1318,7 @@ export default function RotatingDial() {
       // If a specific theme is explicitly being tested/previewed, ensure sound is unmuted
       if (overrideThemeId) {
         setIsMuted(false);
+        setStoredMuteState(false);
       } else if (isMuted) {
         return;
       }
@@ -1356,29 +1328,17 @@ export default function RotatingDial() {
       try {
         if (typeof window === 'undefined') return;
 
-        if (!audioCtxRef.current) {
-          const AudioCtx =
-            window.AudioContext ||
-            (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-          if (AudioCtx) {
-            audioCtxRef.current = new AudioCtx();
-          }
-        }
-
-        const ctx = audioCtxRef.current;
+        const ctx = getSharedAudioContext();
         if (!ctx) return;
 
         if (ctx.state === 'running') {
           renderSoundTheme(ctx, themeIdToPlay, direction);
-        } else if (ctx.state === 'suspended') {
-          ctx
-            .resume()
-            .then(() => {
-              renderSoundTheme(ctx, themeIdToPlay, direction);
-            })
-            .catch(() => {});
-          // Immediately try rendering as well in case resume took effect synchronously
-          renderSoundTheme(ctx, themeIdToPlay, direction);
+        } else {
+          unlockAudioContext().then((unlockedCtx) => {
+            if (unlockedCtx && unlockedCtx.state === 'running') {
+              renderSoundTheme(unlockedCtx, themeIdToPlay, direction);
+            }
+          });
         }
       } catch {
         // Safe error boundary
@@ -1394,8 +1354,8 @@ export default function RotatingDial() {
   const cycleSoundTheme = useCallback(
     (targetThemeId?: SoundThemeId, autoReturn = false) => {
       ensureAudioUnlocked();
-      // Activating sound when a sound profile is selected
       setIsMuted(false);
+      setStoredMuteState(false);
       setHasInteractedSound(true);
 
       let nextTheme: SoundTheme;
@@ -1408,13 +1368,7 @@ export default function RotatingDial() {
       }
 
       setSelectedSoundThemeId(nextTheme.id);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('delsm_dial_sound_theme', nextTheme.id);
-        } catch {
-          // localStorage disabled
-        }
-      }
+      setStoredThemeId(nextTheme.id);
 
       triggerHapticFeedback([25, 45, 25]);
       showToast(`${nextTheme.icon} Sound Activated: ${nextTheme.name} 🔊`);
@@ -1438,71 +1392,22 @@ export default function RotatingDial() {
   const handleReturnFromSoundSelector = useCallback(() => {
     ensureAudioUnlocked();
     setIsMuted(false);
+    setStoredMuteState(false);
     setHasInteractedSound(true);
     setIsSoundSelectorOpen(false);
 
-    // Play immediate detent audio feedback to confirm active sound on returning to dial
     setTimeout(() => {
       playDialSound('down');
     }, 45);
   }, [ensureAudioUnlocked, playDialSound]);
 
-  // Audio lifecycle and window visibility management: ensures immediate responsiveness on load, refresh, and tab switches
+  // Universal User-Interaction Listener: forces audio initialization on first touch/click event, bypassing autoplay
   useEffect(() => {
-    // Eagerly initialize and attempt wake on app launch
-    ensureAudioUnlocked();
-
-    // Universal gesture handler to immediately wake and unlock Web Audio on user interactions
-    const handleGestureUnlock = () => {
-      ensureAudioUnlocked();
-      if (audioCtxRef.current && audioCtxRef.current.state === 'running') {
-        cleanupGestureListeners();
-      }
-    };
-
-    const cleanupGestureListeners = () => {
-      window.removeEventListener('pointerdown', handleGestureUnlock, true);
-      window.removeEventListener('mousedown', handleGestureUnlock, true);
-      window.removeEventListener('touchstart', handleGestureUnlock, true);
-      window.removeEventListener('touchmove', handleGestureUnlock, true);
-      window.removeEventListener('touchend', handleGestureUnlock, true);
-      window.removeEventListener('click', handleGestureUnlock, true);
-      window.removeEventListener('keydown', handleGestureUnlock, true);
-      window.removeEventListener('wheel', handleGestureUnlock, true);
-      document.removeEventListener('touchstart', handleGestureUnlock, true);
-      document.removeEventListener('pointerdown', handleGestureUnlock, true);
-    };
-
-    const captureOptions = { capture: true, passive: true };
-    window.addEventListener('pointerdown', handleGestureUnlock, captureOptions);
-    window.addEventListener('mousedown', handleGestureUnlock, captureOptions);
-    window.addEventListener('touchstart', handleGestureUnlock, captureOptions);
-    window.addEventListener('touchmove', handleGestureUnlock, captureOptions);
-    window.addEventListener('touchend', handleGestureUnlock, captureOptions);
-    window.addEventListener('click', handleGestureUnlock, captureOptions);
-    window.addEventListener('keydown', handleGestureUnlock, captureOptions);
-    window.addEventListener('wheel', handleGestureUnlock, captureOptions);
-    document.addEventListener('touchstart', handleGestureUnlock, captureOptions);
-    document.addEventListener('pointerdown', handleGestureUnlock, captureOptions);
-
-    // Visibility and window focus listener to handle tab switching seamlessly without lag
-    const handleVisibilityOrFocus = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        ensureAudioUnlocked();
-      }
-    };
-
-    window.addEventListener('focus', handleVisibilityOrFocus);
-    window.addEventListener('blur', handleVisibilityOrFocus);
-    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
-
-    return () => {
-      cleanupGestureListeners();
-      window.removeEventListener('focus', handleVisibilityOrFocus);
-      window.removeEventListener('blur', handleVisibilityOrFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
-    };
-  }, [ensureAudioUnlocked]);
+    const cleanup = initUserInteractionAudioUnlock(() => {
+      // Audio pipeline successfully unlocked by first user gesture
+    });
+    return cleanup;
+  }, []);
 
   // Touch long-press start (mobile)
   const handleLoudspeakerTouchStart = (e: React.TouchEvent) => {
@@ -1569,19 +1474,21 @@ export default function RotatingDial() {
 
       setHasInteractedSound(true);
 
-      const isContextSuspended =
-        !audioCtxRef.current || audioCtxRef.current.state === 'suspended';
+      const ctx = getSharedAudioContext();
+      const isContextSuspended = !ctx || ctx.state !== 'running';
 
       // If user clicked the button while muted OR if browser had suspended the audio context on first run
       if (isMuted || isContextSuspended) {
         ensureAudioUnlocked();
         setIsMuted(false);
+        setStoredMuteState(false);
         showToast(`Sound: ON 🔊 (${currentSoundTheme.name})`);
         setTimeout(() => {
           playDialSound('down');
         }, 30);
       } else {
         setIsMuted(true);
+        setStoredMuteState(true);
         showToast('Sound: MUTED 🔇 (Click again to turn ON)');
       }
     },
