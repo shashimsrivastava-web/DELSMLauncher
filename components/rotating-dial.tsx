@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { ArrowUpRight, ChevronRight, ArrowLeft, Clock, Search, X, Layers, Volume2, VolumeX, RotateCw, RotateCcw, Check } from 'lucide-react';
 
 export type LinkItemType = 'link' | 'dial' | 'disabled' | 'back';
-export type DialKey = 'main' | 'dgr' | 'ops' | 'll';
+export type DialKey = 'main' | 'checklists' | 'dgr' | 'ops' | 'll';
 
 export interface DialLinkItem {
   id: string;
@@ -33,11 +33,42 @@ const MAIN_LINKS: DialLinkItem[] = [
     sourceDialTitle: 'Main Landing Page',
   },
   {
+    id: 'ms-forms-checklists-dial',
+    title: 'MS Forms Checklists',
+    subtitle: 'Open Checklists Dial',
+    domain: 'MS Forms Checklists',
+    category: 'Checklists Dial',
+    type: 'dial',
+    targetDial: 'checklists',
+    sourceDialKey: 'main',
+    sourceDialTitle: 'Main Landing Page',
+  },
+  {
     id: 'devices-inventory',
     title: 'Devices Inventory App',
     url: 'https://assets-inventory-delsm.vercel.app/',
     domain: 'assets-inventory-delsm.vercel.app',
     category: 'Asset Management',
+    type: 'link',
+    sourceDialKey: 'main',
+    sourceDialTitle: 'Main Landing Page',
+  },
+  {
+    id: 'turnaround-companion-app',
+    title: 'Turnaround Companion App',
+    url: 'https://tac.lufthansa-group.com/',
+    domain: 'tac.lufthansa-group.com',
+    category: 'Turnaround Operations',
+    type: 'link',
+    sourceDialKey: 'main',
+    sourceDialTitle: 'Main Landing Page',
+  },
+  {
+    id: 'sara-medical-ops-portal',
+    title: 'SARA Medical Ops Portal',
+    url: 'https://delivery-partner-portal.lufthansa.com/',
+    domain: 'delivery-partner-portal.lufthansa.com',
+    category: 'Medical Operations',
     type: 'link',
     sourceDialKey: 'main',
     sourceDialTitle: 'Main Landing Page',
@@ -309,6 +340,20 @@ const LL_LINKS: DialLinkItem[] = [
   },
 ];
 
+// 5. CHECKLISTS DIAL
+const CHECKLISTS_LINKS: DialLinkItem[] = [
+  {
+    id: 'checklists-return-to-main',
+    title: 'Return to Main DIAL',
+    domain: 'Navigate to main DIAL',
+    category: 'Navigation',
+    type: 'back',
+    targetDial: 'main',
+    sourceDialKey: 'checklists',
+    sourceDialTitle: 'Checklists DIAL',
+  },
+];
+
 const DIAL_DATA: Record<
   DialKey,
   { title: string; links: DialLinkItem[] }
@@ -316,6 +361,10 @@ const DIAL_DATA: Record<
   main: {
     title: 'Main Navigation Dial',
     links: MAIN_LINKS,
+  },
+  checklists: {
+    title: 'Checklists DIAL',
+    links: CHECKLISTS_LINKS,
   },
   dgr: {
     title: 'DGR Videos and Training Page DIAL',
@@ -334,6 +383,7 @@ const DIAL_DATA: Record<
 // All search-eligible unique items across all dials (excluding back buttons)
 const ALL_SEARCHABLE_ITEMS: DialLinkItem[] = [
   ...MAIN_LINKS.filter((item) => item.type !== 'back'),
+  ...CHECKLISTS_LINKS.filter((item) => item.type !== 'back'),
   ...DGR_LINKS.filter((item) => item.type !== 'back'),
   ...OPS_LINKS.filter((item) => item.type !== 'back'),
   ...LL_LINKS.filter((item) => item.type !== 'back'),
@@ -1241,25 +1291,7 @@ export default function RotatingDial() {
 
   // Web Audio Context for authentic mechanical dial clicks
   const audioCtxRef = useRef<AudioContext | null>(null);
-
-  // HTML5 audio fallback pool for zero-latency, infallible playback even when Web Audio is suspended
-  const fallbackAudioPoolRef = useRef<HTMLAudioElement[]>([]);
-  const fallbackAudioIndexRef = useRef(0);
-
-  const playFallbackAudio = useCallback(() => {
-    if (isMuted) return;
-    try {
-      const pool = fallbackAudioPoolRef.current;
-      if (pool.length > 0) {
-        const audio = pool[fallbackAudioIndexRef.current % pool.length];
-        fallbackAudioIndexRef.current++;
-        audio.currentTime = 0;
-        audio.play().catch(() => {});
-      }
-    } catch {
-      // Ignore
-    }
-  }, [isMuted]);
+  const isAudioResumingRef = useRef(false);
 
   // Subtle mobile haptic vibration feedback on snap or item click
   const triggerHapticFeedback = useCallback((pattern: number | number[] = 14) => {
@@ -1272,7 +1304,7 @@ export default function RotatingDial() {
     }
   }, []);
 
-  // Dedicated helper to instantiate and fully wake audio engine
+  // Dedicated helper to instantiate and wake audio engine cleanly without flooding promises
   const ensureAudioUnlocked = useCallback(async () => {
     try {
       if (typeof window === 'undefined') return;
@@ -1286,18 +1318,25 @@ export default function RotatingDial() {
       }
 
       const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') {
-        await ctx.resume().catch(() => {});
+      if (ctx.state === 'suspended' && !isAudioResumingRef.current) {
+        isAudioResumingRef.current = true;
+        try {
+          await ctx.resume();
+        } finally {
+          isAudioResumingRef.current = false;
+        }
       }
 
-      // iOS Safari requires playing a tiny silent buffer inside a user gesture event to fully activate output
-      const silentBuffer = ctx.createBuffer(1, 1, 22050);
-      const source = ctx.createBufferSource();
-      source.buffer = silentBuffer;
-      source.connect(ctx.destination);
-      source.start(0);
+      // iOS Safari requires a micro silent buffer on initial gesture
+      if (ctx.state === 'running') {
+        const silentBuffer = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = silentBuffer;
+        source.connect(ctx.destination);
+        source.start(0);
+      }
     } catch {
-      // Ignore
+      isAudioResumingRef.current = false;
     }
   }, []);
 
@@ -1317,40 +1356,41 @@ export default function RotatingDial() {
       const themeIdToPlay = overrideThemeId || selectedSoundThemeId;
 
       try {
-        const AudioCtx =
-          window.AudioContext ||
-          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        if (!AudioCtx) {
-          playFallbackAudio();
-          return;
-        }
+        if (typeof window === 'undefined') return;
 
         if (!audioCtxRef.current) {
-          audioCtxRef.current = new AudioCtx();
+          const AudioCtx =
+            window.AudioContext ||
+            (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+          if (AudioCtx) {
+            audioCtxRef.current = new AudioCtx();
+          }
         }
 
         const ctx = audioCtxRef.current;
+        if (!ctx) return;
 
         if (ctx.state === 'running') {
           renderSoundTheme(ctx, themeIdToPlay, direction);
-        } else {
-          // If suspended due to browser policy, resume and play as soon as active
-          ctx
-            .resume()
-            .then(() => {
-              renderSoundTheme(ctx, themeIdToPlay, direction);
-            })
-            .catch(() => {
-              playFallbackAudio();
-            });
-          // Also immediately fire fallback audio so user interaction is never silent
-          playFallbackAudio();
+        } else if (ctx.state === 'suspended') {
+          if (!isAudioResumingRef.current) {
+            isAudioResumingRef.current = true;
+            ctx
+              .resume()
+              .then(() => {
+                isAudioResumingRef.current = false;
+                renderSoundTheme(ctx, themeIdToPlay, direction);
+              })
+              .catch(() => {
+                isAudioResumingRef.current = false;
+              });
+          }
         }
       } catch {
-        playFallbackAudio();
+        // Safe error boundary
       }
     },
-    [isMuted, triggerHapticFeedback, playFallbackAudio, selectedSoundThemeId]
+    [isMuted, triggerHapticFeedback, selectedSoundThemeId]
   );
 
   // Backward compatibility alias so all snap/step rotations call playDialSound
@@ -1413,70 +1453,15 @@ export default function RotatingDial() {
     }, 45);
   }, [ensureAudioUnlocked, playDialSound]);
 
-  // Force sound on initial launch and unlock audio context across all initial user interaction vectors
+  // Audio lifecycle and window visibility management: ensures immediate responsiveness on load and tab switches
   useEffect(() => {
-    // Initialize HTML5 fallback audio pool
-    if (typeof window !== 'undefined') {
-      try {
-        const wavUrl = createClickWavUrl();
-        if (wavUrl) {
-          fallbackAudioPoolRef.current = [
-            new Audio(wavUrl),
-            new Audio(wavUrl),
-            new Audio(wavUrl),
-          ];
-          fallbackAudioPoolRef.current.forEach((el) => {
-            el.volume = 0.95;
-            el.preload = 'auto';
-          });
-        }
-      } catch {
-        // Fallback initialization
-      }
-    }
-
-    let hasAutoWoken = false;
-
-    // Eager attempt to wake audio and force welcome mechanical sound on initial page load
-    const attemptEagerWake = async () => {
-      try {
-        const AudioCtx =
-          window.AudioContext ||
-          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        if (!AudioCtx) return;
-
-        if (!audioCtxRef.current) {
-          audioCtxRef.current = new AudioCtx();
-        }
-
-        const ctx = audioCtxRef.current;
-        if (ctx.state === 'suspended') {
-          await ctx.resume().catch(() => {});
-        }
-
-        if (ctx.state === 'running' && !hasAutoWoken) {
-          hasAutoWoken = true;
-          // Successfully allowed by browser: force initial crisp ratchet sound!
-          playDialSound('down');
-        }
-      } catch {
-        // Browser autoplay policy holds audio until first interaction
-      }
-    };
-
-    attemptEagerWake();
-
-    // Universal gesture handler to immediately unlock and force mechanical click on very first user interaction
+    // Universal gesture handler to immediately wake and unlock Web Audio on first user interaction
     const handleFirstGestureUnlock = () => {
-      if (!hasAutoWoken) {
-        hasAutoWoken = true;
-        ensureAudioUnlocked();
-        playFallbackAudio();
-      }
-      cleanup();
+      ensureAudioUnlocked();
+      cleanupGestureListeners();
     };
 
-    const cleanup = () => {
+    const cleanupGestureListeners = () => {
       window.removeEventListener('pointerdown', handleFirstGestureUnlock, true);
       window.removeEventListener('mousedown', handleFirstGestureUnlock, true);
       window.removeEventListener('touchstart', handleFirstGestureUnlock, true);
@@ -1484,7 +1469,6 @@ export default function RotatingDial() {
       window.removeEventListener('click', handleFirstGestureUnlock, true);
       window.removeEventListener('keydown', handleFirstGestureUnlock, true);
       window.removeEventListener('wheel', handleFirstGestureUnlock, true);
-      window.removeEventListener('scroll', handleFirstGestureUnlock, true);
     };
 
     const captureOptions = { capture: true, passive: true };
@@ -1495,12 +1479,25 @@ export default function RotatingDial() {
     window.addEventListener('click', handleFirstGestureUnlock, captureOptions);
     window.addEventListener('keydown', handleFirstGestureUnlock, captureOptions);
     window.addEventListener('wheel', handleFirstGestureUnlock, captureOptions);
-    window.addEventListener('scroll', handleFirstGestureUnlock, captureOptions);
+
+    // Visibility and window focus listener to handle tab switching seamlessly without lag
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        ensureAudioUnlocked();
+      }
+    };
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    window.addEventListener('blur', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
 
     return () => {
-      cleanup();
+      cleanupGestureListeners();
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      window.removeEventListener('blur', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
-  }, [playDialSound, ensureAudioUnlocked, playFallbackAudio]);
+  }, [ensureAudioUnlocked]);
 
   // Touch long-press start (mobile)
   const handleLoudspeakerTouchStart = (e: React.TouchEvent) => {
@@ -2428,10 +2425,11 @@ export default function RotatingDial() {
 
           <div className="flex items-center gap-1 shrink-0">
             <span className="text-neutral-600 hidden sm:inline mr-1">Switch:</span>
-            {(['main', 'dgr', 'ops', 'll'] as DialKey[]).map((key) => {
+            {(['main', 'checklists', 'dgr', 'ops', 'll'] as DialKey[]).map((key) => {
               const isActive = activeDialKey === key && !isSearchActive;
               const labels: Record<DialKey, string> = {
                 main: 'Main',
+                checklists: 'Checklists',
                 dgr: 'DGR',
                 ops: 'OPS',
                 ll: 'LL',
@@ -2491,13 +2489,11 @@ export default function RotatingDial() {
                   transform: `translate3d(0, ${data.y}px, ${data.z}px) rotateX(${data.rotateX}deg) scale(${data.scale})`,
                   opacity: data.opacity,
                   boxShadow: data.boxShadow,
-                  filter: data.isCenter
-                    ? 'none'
-                    : `drop-shadow(0 ${data.d < 0 ? '16px' : '-16px'} 20px rgba(0,0,0,0.65))`,
                   pointerEvents: data.isForefront ? 'auto' : 'none',
                   visibility: data.visible ? 'visible' : 'hidden',
-                  willChange: 'transform, opacity, box-shadow, filter',
-                  transition: 'background-color 200ms ease, border-color 200ms ease',
+                  willChange: 'transform, opacity',
+                  backfaceVisibility: 'hidden',
+                  WebkitBackfaceVisibility: 'hidden',
                 }}
                 className={`absolute w-[88vw] max-w-[460px] h-[78px] px-6 py-3.5 rounded-xl flex items-center justify-between group outline-none touch-manipulation active:scale-[0.98] ${
                   !isClickable ? 'cursor-not-allowed' : 'cursor-pointer'
