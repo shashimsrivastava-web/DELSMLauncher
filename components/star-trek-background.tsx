@@ -120,8 +120,8 @@ export default function StarTrekBackground() {
         y: Math.sin(angle) * spread,
         z,
         pz: z,
-        // Rapid forward velocity for warp flight sensation
-        speed: Math.random() * 12.0 + 9.5,
+        // Serene cinematic forward velocity (>55% slower for smooth depth)
+        speed: Math.random() * 4.2 + 3.2,
         size: Math.random() * 1.8 + 0.8,
         color: STAR_COLORS[Math.floor(Math.random() * STAR_COLORS.length)],
         brightness: Math.random() * 0.4 + 0.6,
@@ -143,20 +143,20 @@ export default function StarTrekBackground() {
       flareParticles.push({
         angle,
         radius: baseRadius * (Math.random() * 0.35 + 0.8),
-        speed: Math.random() * 2.2 + 1.0,
+        speed: Math.random() * 0.9 + 0.45,
         size: Math.random() * 6.0 + 2.5,
         alpha: 1.0,
         maxAlpha: Math.random() * 0.7 + 0.35,
-        decay: Math.random() * 0.015 + 0.007,
+        decay: Math.random() * 0.007 + 0.003,
         color: SOLAR_COLORS[Math.floor(Math.random() * SOLAR_COLORS.length)],
-        wobbleSpeed: Math.random() * 0.08 + 0.03,
+        wobbleSpeed: Math.random() * 0.04 + 0.015,
         wobblePhase: Math.random() * Math.PI * 2,
       });
     };
 
     // 3. 3D Star Trek Starships
     const ships: Ship3D[] = [];
-    let nextShipTime = Date.now() + 2000;
+    let nextShipTime = Date.now() + 3000;
     let shipIdCounter = 0;
 
     const spawnShip3D = () => {
@@ -178,9 +178,9 @@ export default function StarTrekBackground() {
           x: startX,
           y: startY,
           z: 980,
-          vx: Math.cos(angle) * (Math.random() * 1.6 + 1.2),
-          vy: Math.sin(angle) * (Math.random() * 1.3 + 0.9),
-          vz: -(Math.random() * 9.5 + 6.5),
+          vx: Math.cos(angle) * (Math.random() * 0.65 + 0.45),
+          vy: Math.sin(angle) * (Math.random() * 0.5 + 0.35),
+          vz: -(Math.random() * 3.6 + 2.5),
           angle,
           direction,
           type,
@@ -198,9 +198,9 @@ export default function StarTrekBackground() {
           x: startX,
           y: startY,
           z: 75,
-          vx: Math.cos(angle) * 1.3,
-          vy: Math.sin(angle) * 0.9,
-          vz: Math.random() * 9.5 + 6.5,
+          vx: Math.cos(angle) * 0.55,
+          vy: Math.sin(angle) * 0.38,
+          vz: Math.random() * 3.6 + 2.5,
           angle,
           direction,
           type,
@@ -325,6 +325,12 @@ export default function StarTrekBackground() {
     let lastFrameTime = performance.now();
     const fov = 340;
 
+    // Flight steering dynamics state (Steering Left -> Right -> Straight -> Repeat)
+    let currentYaw = 0;
+    let currentRoll = 0;
+    let currentPitch = 0;
+    let steeringTimer = 0;
+
     // Main 60/120 FPS Render Loop
     const render = (nowTime: number) => {
       animId = requestAnimationFrame(render);
@@ -336,9 +342,54 @@ export default function StarTrekBackground() {
       const centerX = width / 2;
       const centerY = height / 2;
 
+      // Update spaceship steering sequence: 7s Steering Left -> 7s Steering Right -> 7s Straight -> Repeat
+      steeringTimer += dt;
+      const CYCLE_PERIOD = 21; // 21s continuous flight cycle
+      const phaseTime = steeringTimer % CYCLE_PERIOD;
+
+      let targetYaw = 0;
+      let targetRoll = 0;
+      let targetPitch = 0;
+
+      if (phaseTime < 7) {
+        // 1. Steering Left: Starship banks left (-2.5°), perspective drifts right
+        const p = phaseTime / 7;
+        const curve = Math.sin(p * Math.PI);
+        targetYaw = 65 * curve;
+        targetRoll = -0.044 * curve; // Smooth banking left
+        targetPitch = 10 * Math.sin(p * Math.PI * 2);
+      } else if (phaseTime < 14) {
+        // 2. Steering Right: Starship banks right (+2.5°), perspective drifts left
+        const p = (phaseTime - 7) / 7;
+        const curve = Math.sin(p * Math.PI);
+        targetYaw = -65 * curve;
+        targetRoll = 0.044 * curve; // Smooth banking right
+        targetPitch = 10 * Math.sin(p * Math.PI * 2);
+      } else {
+        // 3. Cruising Straight Ahead: Level horizon, zero bank roll
+        targetYaw = 0;
+        targetRoll = 0;
+        targetPitch = 0;
+      }
+
+      // Smooth flight inertia damping for authentic spaceship feel
+      const damp = Math.min(1, dt * 2.6);
+      currentYaw += (targetYaw - currentYaw) * damp;
+      currentRoll += (targetRoll - currentRoll) * damp;
+      currentPitch += (targetPitch - currentPitch) * damp;
+
+      const vanishingX = centerX + currentYaw;
+      const vanishingY = centerY + currentPitch;
+
       // 1. Deep Space Obsidian Base
       ctx.fillStyle = '#010308';
       ctx.fillRect(0, 0, width, height);
+
+      ctx.save();
+      // Apply cockpit banking roll around center
+      ctx.translate(centerX, centerY);
+      ctx.rotate(currentRoll);
+      ctx.translate(-centerX, -centerY);
 
       // 2. Solar Supernova: Positioned further to Top-Right and significantly bigger with soft blurred corona
       supernovaOrbitAngle += dt * 0.035;
@@ -486,11 +537,11 @@ export default function StarTrekBackground() {
       ctx.arc(sunOrbitX, sunOrbitY, sunCoreRadius * 1.15, 0, Math.PI * 2);
       ctx.fill();
 
-      // 3. 3D Stars: Streaming backward past camera to create the continuous illusion of spaceship flying forward at speed
+      // 3. 3D Stars: Streaming backward past camera with dynamic forward warp streaking
       for (let i = 0; i < stars.length; i++) {
         const star = stars[i];
         star.pz = star.z;
-        // Move towards camera (z decreases rapidly)
+        // Move towards camera (z decreases)
         star.z -= star.speed * (dt * 60);
 
         if (star.z <= 20) {
@@ -498,37 +549,52 @@ export default function StarTrekBackground() {
           continue;
         }
 
-        // 3D Perspective Projection
+        // 3D Perspective Projection for Leading Star Head
         const k = fov / star.z;
-        const sx = star.x * k + centerX;
-        const sy = star.y * k + centerY;
+        const sx = star.x * k + vanishingX;
+        const sy = star.y * k + vanishingY;
 
-        const pk = fov / Math.max(25, star.pz);
-        const psx = star.x * pk + centerX;
-        const psy = star.y * pk + centerY;
+        // Calculate 3D Trailing Point for Pronounced Warp Streaking
+        // As star gets closer, the perspective streak elongates dramatically toward the vanishing center
+        const tailOffset = star.speed * 28 + (1250 - star.z) * 0.12;
+        const tailZ = Math.min(1300, star.z + tailOffset);
+        const tk = fov / Math.max(30, tailZ);
+        const tx = star.x * tk + vanishingX;
+        const ty = star.y * tk + vanishingY;
 
-        if (sx < -100 || sx > width + 100 || sy < -100 || sy > height + 100) {
+        if (sx < -120 || sx > width + 120 || sy < -120 || sy > height + 120) {
           stars[i] = initWarpStar(star, true);
           continue;
         }
 
         // Depth alpha and render sizing
-        const depthAlpha = Math.max(0.18, Math.min(1.0, (1 - star.z / 1250) * 1.6));
-        const renderSize = Math.max(0.7, (star.size * fov) / star.z);
+        const depthAlpha = Math.max(0.2, Math.min(1.0, (1 - star.z / 1300) * 1.7));
+        const renderSize = Math.max(0.8, (star.size * fov) / star.z);
 
-        ctx.strokeStyle = star.color;
-        ctx.fillStyle = star.color;
         ctx.globalAlpha = depthAlpha * star.brightness;
 
         // Dynamic forward warp streak lines that stretch outward from the center
-        const streakDist = Math.hypot(sx - psx, sy - psy);
-        if (streakDist > 0.6) {
-          ctx.lineWidth = Math.min(4.0, renderSize * 1.3);
+        const streakDist = Math.hypot(sx - tx, sy - ty);
+        if (streakDist > 1.8) {
+          const streakGrad = ctx.createLinearGradient(tx, ty, sx, sy);
+          streakGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+          streakGrad.addColorStop(0.55, star.color);
+          streakGrad.addColorStop(1, '#ffffff');
+
+          ctx.strokeStyle = streakGrad;
+          ctx.lineWidth = Math.max(0.9, Math.min(3.6, renderSize * 1.25));
           ctx.beginPath();
-          ctx.moveTo(psx, psy);
+          ctx.moveTo(tx, ty);
           ctx.lineTo(sx, sy);
           ctx.stroke();
+
+          // Bright star head point at leading edge
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(sx, sy, Math.max(1.0, renderSize * 0.8), 0, Math.PI * 2);
+          ctx.fill();
         } else {
+          ctx.fillStyle = star.color;
           ctx.beginPath();
           ctx.arc(sx, sy, renderSize, 0, Math.PI * 2);
           ctx.fill();
@@ -552,8 +618,8 @@ export default function StarTrekBackground() {
         ship.z += ship.vz * (dt * 60);
 
         const k = fov / Math.max(25, ship.z);
-        const sx = ship.x * k + centerX;
-        const sy = ship.y * k + centerY;
+        const sx = ship.x * k + vanishingX;
+        const sy = ship.y * k + vanishingY;
         const renderScale = Math.max(0.08, Math.min(2.4, (fov / Math.max(30, ship.z)) * 0.45));
 
         if (ship.direction === 'towards_camera') {
@@ -578,15 +644,15 @@ export default function StarTrekBackground() {
         if (Math.random() > 0.22 && ship.opacity > 0.2) {
           for (let s = 0; s < 2; s++) {
             const sparkAngle = ship.angle + Math.PI + (Math.random() * 0.8 - 0.4);
-            const speed = Math.random() * 3.5 + 2.0;
+            const speed = Math.random() * 1.5 + 0.8;
             ship.sparks.push({
               x: sx,
               y: sy + (s === 0 ? -10 : 10) * renderScale,
-              vx: Math.cos(sparkAngle) * speed + (Math.random() - 0.5) * 2,
-              vy: Math.sin(sparkAngle) * speed + (Math.random() - 0.5) * 2,
-              size: Math.random() * 3.5 + 1.5,
+              vx: Math.cos(sparkAngle) * speed + (Math.random() - 0.5) * 0.8,
+              vy: Math.sin(sparkAngle) * speed + (Math.random() - 0.5) * 0.8,
+              size: Math.random() * 3.0 + 1.2,
               alpha: 1.0,
-              decay: Math.random() * 0.05 + 0.03,
+              decay: Math.random() * 0.025 + 0.015,
               color: SPARK_COLORS[Math.floor(Math.random() * SPARK_COLORS.length)],
             });
           }
@@ -626,6 +692,7 @@ export default function StarTrekBackground() {
         }
       }
 
+      ctx.restore();
       ctx.globalAlpha = 1;
     };
 

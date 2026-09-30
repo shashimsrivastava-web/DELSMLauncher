@@ -9,7 +9,6 @@ import {
   unlockAudioContext,
   wakeAudioHardware,
   unlockMediaElement,
-  forceAutoPlayOrMuteUnmuteCycle,
   initUserInteractionAudioUnlock,
   getStoredMuteState,
   setStoredMuteState,
@@ -1309,7 +1308,6 @@ export default function RotatingDial() {
 
   // Dedicated helper to instantiate and wake audio engine cleanly on user interactions
   const ensureAudioUnlocked = useCallback(() => {
-    forceAutoPlayOrMuteUnmuteCycle();
     unlockAudioContext();
   }, []);
 
@@ -1406,21 +1404,9 @@ export default function RotatingDial() {
     }, 45);
   }, [ensureAudioUnlocked, playDialSound]);
 
-  // Universal User-Interaction Listener: forces audio initialization on launch and first touch/click event, bypassing autoplay
+  // Universal User-Interaction Listener: prepares audio context so on unmute sound activates instantly
   useEffect(() => {
-    // Force mute/unmute audio pipeline wake on mount
-    forceAutoPlayOrMuteUnmuteCycle(() => {
-      if (!getStoredMuteState()) {
-        setIsMuted(false);
-      }
-    });
-
-    const cleanup = initUserInteractionAudioUnlock(() => {
-      // Audio pipeline successfully unlocked by first user gesture
-      if (!getStoredMuteState()) {
-        setIsMuted(false);
-      }
-    });
+    const cleanup = initUserInteractionAudioUnlock();
     return cleanup;
   }, []);
 
@@ -1494,20 +1480,27 @@ export default function RotatingDial() {
 
       // If user clicked the button while muted OR if browser had suspended the audio context on first run
       if (isMuted || isContextSuspended) {
-        ensureAudioUnlocked();
+        const ctx = getSharedAudioContext();
+        if (ctx) {
+          wakeAudioHardware(ctx);
+          if (ctx.state !== 'running') {
+            ctx.resume().catch(() => {});
+          }
+          renderSoundTheme(ctx, selectedSoundThemeId, 'down');
+        }
+        unlockAudioContext();
         setIsMuted(false);
         setStoredMuteState(false);
+        triggerHapticFeedback([25, 45]);
         showToast(`Sound: ON 🔊 (${currentSoundTheme.name})`);
-        setTimeout(() => {
-          playDialSound('down');
-        }, 30);
       } else {
         setIsMuted(true);
         setStoredMuteState(true);
-        showToast('Sound: MUTED 🔇 (Click again to turn ON)');
+        triggerHapticFeedback(16);
+        showToast('Sound: MUTED 🔇 (Tap to turn ON)');
       }
     },
-    [isMuted, ensureAudioUnlocked, playDialSound, showToast, currentSoundTheme, cycleSoundTheme]
+    [isMuted, selectedSoundThemeId, showToast, currentSoundTheme, cycleSoundTheme, triggerHapticFeedback]
   );
 
   const isSearchActive = searchQuery.trim().length > 0;

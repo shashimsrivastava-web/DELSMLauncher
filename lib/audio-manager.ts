@@ -1,6 +1,5 @@
 // Universal Web Audio Singleton & Interaction Auto-Unlocker
-// Bypasses browser autoplay policies on first touch/click, forces auto-play activation,
-// and ensures audio state persists across page sessions & refreshes.
+// Launches app muted by default so clicking UNMUTE instantly wakes the audio pipeline.
 
 let globalAudioCtx: AudioContext | null = null;
 let isAudioEngineUnlocked = false;
@@ -15,13 +14,13 @@ const SILENT_WAV_DATA_URI =
 let fallbackAudioElement: HTMLAudioElement | null = null;
 
 export function getStoredMuteState(): boolean {
-  if (typeof window === 'undefined') return false;
+  if (typeof window === 'undefined') return true;
   try {
     const val = localStorage.getItem(STORAGE_KEY_MUTED);
-    // Explicitly check for 'true'. If unset or anything else, default is FALSE (Sound Active)
-    return val === 'true';
+    // Default is TRUE (Launched Muted), unless explicitly unmuted ('false')
+    return val !== 'false';
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -150,49 +149,16 @@ export function unlockAudioContext(): Promise<AudioContext | null> {
 }
 
 /**
- * Automatically cycles mute/unmute to force the browser audio subsystem to activate
- * on launch, refresh, and first user interaction.
- */
-export function forceAutoPlayOrMuteUnmuteCycle(onActivated?: () => void): void {
-  if (typeof window === 'undefined') return;
-
-  const isUserExplicitlyMuted = getStoredMuteState();
-
-  // 1. Instantly wake the Web Audio context & HTML5 audio pipeline
-  const ctx = getSharedAudioContext();
-  if (ctx) {
-    wakeAudioHardware(ctx);
-    if (ctx.state !== 'running') {
-      ctx.resume().catch(() => {});
-    }
-  }
-  unlockMediaElement();
-
-  // 2. If user hasn't explicitly muted, ensure persistent state is active (unmuted)
-  if (!isUserExplicitlyMuted) {
-    setStoredMuteState(false);
-    isAudioEngineUnlocked = true;
-    if (onActivated) {
-      onActivated();
-    }
-  }
-}
-
-/**
  * Attaches high-priority capturing event listeners on all primary user interactions
- * (touch, pointer, click, keydown, wheel, scroll) to force audio initialization immediately
- * on the first user interaction, bypassing mobile autoplay restrictions.
+ * to prepare and unlock audio instantly when unmuted.
  */
 export function initUserInteractionAudioUnlock(onUnlocked?: () => void): () => void {
   if (typeof window === 'undefined') return () => {};
 
-  // Eagerly try to wake on initialization
-  forceAutoPlayOrMuteUnmuteCycle(onUnlocked);
-
   let hasTriggered = false;
 
   const handleInteraction = () => {
-    // Synchronously unlock and resume on every gesture
+    // Pre-wake audio context on user gesture
     unlockAudioContext().then((ctx) => {
       if (ctx && ctx.state === 'running') {
         isAudioEngineUnlocked = true;
@@ -217,7 +183,6 @@ export function initUserInteractionAudioUnlock(onUnlocked?: () => void): () => v
       'click',
       'keydown',
       'wheel',
-      'scroll',
     ];
 
     events.forEach((evt) => {
@@ -242,7 +207,6 @@ export function initUserInteractionAudioUnlock(onUnlocked?: () => void): () => v
     'click',
     'keydown',
     'wheel',
-    'scroll',
   ];
 
   events.forEach((evt) => {
