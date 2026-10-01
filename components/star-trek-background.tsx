@@ -70,9 +70,12 @@ const SOLAR_COLORS = [
   '#fde047',
   '#f59e0b',
   '#fb923c',
+  '#38bdf8', // Electric Cyan Blue Flame
+  '#0284c7', // Deep Royal Blue Flame
+  '#67e8f9', // Light Aqua Blue Flame
+  '#93c5fd', // Soft Sky Blue
   '#ea580c',
   '#ef4444',
-  '#fda4af',
 ];
 
 const SPARK_COLORS = ['#38bdf8', '#67e8f9', '#fbbf24', '#f59e0b', '#f43f5e', '#ffffff'];
@@ -391,18 +394,22 @@ export default function StarTrekBackground() {
       ctx.rotate(currentRoll);
       ctx.translate(-centerX, -centerY);
 
-      // 2. Solar Supernova: Positioned further to Top-Right and significantly bigger with soft blurred corona
+      // 2. Solar Supernova: Positioned further to Top-Right with slow breathing pulsation & dancing blue flames
       supernovaOrbitAngle += dt * 0.035;
-      supernovaPulseTime += dt * 1.8;
+      supernovaPulseTime += dt * 1.6;
+
+      // Very slow, organic cosmic breathing cycle (~18-20 second period)
+      const breathingScale = 1.0 + Math.sin(supernovaPulseTime * 0.32) * 0.15;
 
       // Top-right coordinates with subtle orbital drift
       const sunOrbitX = width * 0.92 + Math.cos(supernovaOrbitAngle * 0.4) * 22;
       const sunOrbitY = height * 0.08 + Math.sin(supernovaOrbitAngle * 0.3) * 16;
-      // Substantially bigger supernova core radius
-      const sunCoreRadius = Math.min(width, height) * 0.36;
+      // Substantially bigger supernova core radius with slow expansion/contraction
+      const baseCoreRadius = Math.min(width, height) * 0.35;
+      const sunCoreRadius = baseCoreRadius * breathingScale;
 
       // A. Massive Outer Ambient Coronal Shockwave (Soft radial gradient to deep space)
-      const shockwaveRadius = sunCoreRadius * (2.9 + Math.sin(supernovaPulseTime * 0.5) * 0.12);
+      const shockwaveRadius = sunCoreRadius * (2.85 + Math.sin(supernovaPulseTime * 0.45) * 0.14);
       const outerCorona = ctx.createRadialGradient(
         sunOrbitX,
         sunOrbitY,
@@ -415,8 +422,8 @@ export default function StarTrekBackground() {
       outerCorona.addColorStop(0.12, 'rgba(254, 240, 138, 0.80)');
       outerCorona.addColorStop(0.28, 'rgba(245, 158, 11, 0.55)');
       outerCorona.addColorStop(0.48, 'rgba(234, 88, 12, 0.32)');
-      outerCorona.addColorStop(0.70, 'rgba(225, 29, 72, 0.16)');
-      outerCorona.addColorStop(0.88, 'rgba(56, 189, 248, 0.08)');
+      outerCorona.addColorStop(0.68, 'rgba(225, 29, 72, 0.16)');
+      outerCorona.addColorStop(0.85, 'rgba(56, 189, 248, 0.18)'); // Blue coronal halo
       outerCorona.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
       ctx.fillStyle = outerCorona;
@@ -436,7 +443,8 @@ export default function StarTrekBackground() {
       );
       midCorona.addColorStop(0, 'rgba(255, 255, 240, 0.90)');
       midCorona.addColorStop(0.35, 'rgba(253, 224, 71, 0.70)');
-      midCorona.addColorStop(0.70, 'rgba(249, 115, 22, 0.40)');
+      midCorona.addColorStop(0.65, 'rgba(249, 115, 22, 0.40)');
+      midCorona.addColorStop(0.85, 'rgba(14, 165, 233, 0.25)'); // Cyan atmospheric transition
       midCorona.addColorStop(1, 'rgba(239, 68, 68, 0)');
 
       ctx.fillStyle = midCorona;
@@ -452,8 +460,8 @@ export default function StarTrekBackground() {
       const ringGrad = ctx.createRadialGradient(0, 0, sunCoreRadius * 0.8, 0, 0, sunCoreRadius * 2.5);
       ringGrad.addColorStop(0, 'rgba(251, 146, 60, 0)');
       ringGrad.addColorStop(0.35, 'rgba(253, 224, 71, 0.38)');
-      ringGrad.addColorStop(0.65, 'rgba(244, 63, 94, 0.22)');
-      ringGrad.addColorStop(0.88, 'rgba(56, 189, 248, 0.12)');
+      ringGrad.addColorStop(0.65, 'rgba(56, 189, 248, 0.30)'); // Glowing blue accretion boundary
+      ringGrad.addColorStop(0.88, 'rgba(14, 165, 233, 0.18)');
       ringGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
       ctx.fillStyle = ringGrad;
@@ -461,7 +469,42 @@ export default function StarTrekBackground() {
       ctx.ellipse(0, 0, sunCoreRadius * 2.4, sunCoreRadius * 0.8, 0.3, 0, Math.PI * 2);
       ctx.fill();
 
-      // D. Dynamic Solar Prominence Eruption Loops & Filaments
+      // D. Dynamic Electric Blue Flames & Prominence Arcs from Star Edges
+      const blueFlameCount = 16;
+      for (let b = 0; b < blueFlameCount; b++) {
+        const baseAngle = (b * Math.PI * 2) / blueFlameCount + supernovaOrbitAngle * 0.35;
+        const waveFlicker =
+          Math.sin(supernovaPulseTime * 3.2 + b * 1.9) * 0.18 +
+          Math.cos(supernovaPulseTime * 2.0 + b * 0.8) * 0.12;
+        const flameAngle = baseAngle + waveFlicker;
+        const flameLength =
+          sunCoreRadius *
+          (1.22 + Math.sin(supernovaPulseTime * 2.5 + b * 2.2) * 0.26 + (b % 3 === 0 ? 0.32 : 0.12));
+
+        const x1 = Math.cos(flameAngle - 0.20) * (sunCoreRadius * 0.94);
+        const y1 = Math.sin(flameAngle - 0.20) * (sunCoreRadius * 0.94);
+        const x2 = Math.cos(flameAngle + 0.20) * (sunCoreRadius * 0.94);
+        const y2 = Math.sin(flameAngle + 0.20) * (sunCoreRadius * 0.94);
+        const cx = Math.cos(flameAngle) * flameLength;
+        const cy = Math.sin(flameAngle) * flameLength;
+
+        const flameGrad = ctx.createLinearGradient(0, 0, cx, cy);
+        flameGrad.addColorStop(0, 'rgba(103, 232, 249, 0.92)'); // Bright Cyan Core
+        flameGrad.addColorStop(0.35, 'rgba(56, 189, 248, 0.78)'); // Electric Sky Blue
+        flameGrad.addColorStop(0.70, 'rgba(2, 132, 199, 0.45)'); // Deep Cobalt
+        flameGrad.addColorStop(1, 'rgba(3, 105, 161, 0)'); // Soft Feathered Tip
+
+        ctx.fillStyle = flameGrad;
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 18;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.quadraticCurveTo(cx * 1.08, cy * 1.08, x2, y2);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Golden & Cyan Solar Prominence Eruption Loops
       const loopCount = 8;
       for (let l = 0; l < loopCount; l++) {
         const loopAngle = (l * (Math.PI * 2)) / loopCount + supernovaPulseTime * 0.25;
@@ -473,17 +516,17 @@ export default function StarTrekBackground() {
         const lcx = Math.cos(loopAngle) * loopHeight;
         const lcy = Math.sin(loopAngle) * loopHeight;
 
-        ctx.strokeStyle = l % 2 === 0 ? 'rgba(254, 240, 138, 0.75)' : 'rgba(249, 115, 22, 0.65)';
+        ctx.strokeStyle = l % 2 === 0 ? 'rgba(56, 189, 248, 0.85)' : 'rgba(254, 240, 138, 0.75)';
         ctx.lineWidth = 3.5;
-        ctx.shadowColor = '#f59e0b';
+        ctx.shadowColor = l % 2 === 0 ? '#38bdf8' : '#f59e0b';
         ctx.shadowBlur = 16;
         ctx.beginPath();
         ctx.moveTo(lx1, ly1);
         ctx.quadraticCurveTo(lcx, lcy, lx2, ly2);
         ctx.stroke();
-        ctx.shadowBlur = 0;
       }
 
+      ctx.shadowBlur = 0;
       ctx.restore();
 
       // E. Supernova Solar Eruptions & Plasma Flare Particle Streamers

@@ -355,6 +355,86 @@ const LL_LINKS: DialLinkItem[] = [
 // 5. CHECKLISTS DIAL
 const CHECKLISTS_LINKS: DialLinkItem[] = [
   {
+    id: 'chk-a1-arc-rf-xflt',
+    title: 'A1. ARC Checklist for RF XFLT',
+    url: 'https://forms.cloud.microsoft/e/GT7rZcfNkG',
+    domain: 'forms.cloud.microsoft',
+    category: 'Forms Checklist',
+    type: 'link',
+    sourceDialKey: 'checklists',
+    sourceDialTitle: 'Checklists DIAL',
+  },
+  {
+    id: 'chk-a2-arrival-crew-immig',
+    title: 'A2 Arrival Crew Immigration CLEARANCE - XFLT',
+    url: 'https://forms.cloud.microsoft/e/kpgtZpSCuu',
+    domain: 'forms.cloud.microsoft',
+    category: 'Forms Checklist',
+    type: 'link',
+    sourceDialKey: 'checklists',
+    sourceDialTitle: 'Checklists DIAL',
+  },
+  {
+    id: 'chk-a3-departure-crew-immig',
+    title: 'A3 Departure Crew AND IMMIG CLEARANCE - XFLT',
+    url: 'https://forms.cloud.microsoft/e/WK0nY5pLpE',
+    domain: 'forms.cloud.microsoft',
+    category: 'Forms Checklist',
+    type: 'link',
+    sourceDialKey: 'checklists',
+    sourceDialTitle: 'Checklists DIAL',
+  },
+  {
+    id: 'chk-a4-flight-lead',
+    title: 'A4. Flight Lead - XFLT',
+    url: 'https://forms.cloud.microsoft/e/iFCR8iwngK',
+    domain: 'forms.cloud.microsoft',
+    category: 'Forms Checklist',
+    type: 'link',
+    sourceDialKey: 'checklists',
+    sourceDialTitle: 'Checklists DIAL',
+  },
+  {
+    id: 'chk-a5-gate-controller',
+    title: 'A5 Gate Controller - XFLT',
+    url: 'https://forms.cloud.microsoft/e/e5PsP9cbkS',
+    domain: 'forms.cloud.microsoft',
+    category: 'Forms Checklist',
+    type: 'link',
+    sourceDialKey: 'checklists',
+    sourceDialTitle: 'Checklists DIAL',
+  },
+  {
+    id: 'chk-a6-ramp-floater',
+    title: 'A6 Ramp Floater - XFLT',
+    url: 'https://forms.cloud.microsoft/e/Mv2u2aU5BD',
+    domain: 'forms.cloud.microsoft',
+    category: 'Forms Checklist',
+    type: 'link',
+    sourceDialKey: 'checklists',
+    sourceDialTitle: 'Checklists DIAL',
+  },
+  {
+    id: 'chk-a7-umnr-departure',
+    title: 'A7 UMNR Departure - XFLT',
+    url: 'https://forms.cloud.microsoft/e/CbUqQJtaei',
+    domain: 'forms.cloud.microsoft',
+    category: 'Forms Checklist',
+    type: 'link',
+    sourceDialKey: 'checklists',
+    sourceDialTitle: 'Checklists DIAL',
+  },
+  {
+    id: 'chk-a8-umnr-arrival',
+    title: 'A8 UMNR Arrival - XFLT',
+    url: 'https://forms.cloud.microsoft/e/HxWUvxc10N',
+    domain: 'forms.cloud.microsoft',
+    category: 'Forms Checklist',
+    type: 'link',
+    sourceDialKey: 'checklists',
+    sourceDialTitle: 'Checklists DIAL',
+  },
+  {
     id: 'checklists-return-to-main',
     title: 'Return to Main DIAL',
     domain: 'Navigate to main DIAL',
@@ -499,42 +579,42 @@ interface SlotConfig {
 
 const SLOT_CONFIGS: Record<number, SlotConfig> = {
   [-2]: {
-    y: -360,
-    z: -210,
-    rotateX: 58,
-    scale: 0.68,
-    opacity: 0,
+    y: -290,
+    z: -170,
+    rotateX: 46,
+    scale: 0.72,
+    opacity: 0.15,
     isForefront: false,
     isCenter: false,
     boxShadow: '0 32px 64px -12px rgba(0,0,0,0.92), 0 0 40px rgba(0,0,0,0.85)',
-    shadowOverlayOpacity: 0.65,
+    shadowOverlayOpacity: 0.60,
   },
   [-1]: {
-    y: -235,
-    z: -125,
-    rotateX: 42,
-    scale: 0.80,
-    opacity: 0.32,
+    y: -188,
+    z: -95,
+    rotateX: 32,
+    scale: 0.82,
+    opacity: 0.50,
     isForefront: true,
     isCenter: false,
     boxShadow: '0 24px 52px -8px rgba(0,0,0,0.88), 0 12px 28px rgba(0,0,0,0.7)',
-    shadowOverlayOpacity: 0.45,
+    shadowOverlayOpacity: 0.35,
   },
   [0]: {
-    y: -140,
-    z: -55,
-    rotateX: 24,
-    scale: 0.90,
-    opacity: 0.68,
+    y: -104,
+    z: -42,
+    rotateX: 18,
+    scale: 0.92,
+    opacity: 0.80,
     isForefront: true,
     isCenter: false,
     boxShadow: '0 16px 40px -6px rgba(0,0,0,0.75), 0 8px 18px rgba(0,0,0,0.5)',
-    shadowOverlayOpacity: 0.22,
+    shadowOverlayOpacity: 0.16,
   },
   [1]: {
-    y: -46,
+    y: -30,
     z: 22,
-    rotateX: 7,
+    rotateX: 6,
     scale: 1.04,
     opacity: 1.0,
     isForefront: true,
@@ -543,9 +623,9 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     shadowOverlayOpacity: 0,
   },
   [2]: {
-    y: 46,
+    y: 50,
     z: 22,
-    rotateX: -7,
+    rotateX: -6,
     scale: 1.04,
     opacity: 1.0,
     isForefront: true,
@@ -554,37 +634,37 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     shadowOverlayOpacity: 0,
   },
   [3]: {
-    y: 140,
-    z: -55,
-    rotateX: -24,
-    scale: 0.90,
-    opacity: 0.68,
+    y: 124,
+    z: -42,
+    rotateX: -18,
+    scale: 0.92,
+    opacity: 0.80,
     isForefront: true,
     isCenter: false,
     boxShadow: '0 -16px 40px -6px rgba(0,0,0,0.75), 0 -8px 18px rgba(0,0,0,0.5)',
-    shadowOverlayOpacity: 0.22,
+    shadowOverlayOpacity: 0.16,
   },
   [4]: {
-    y: 235,
-    z: -125,
-    rotateX: -42,
-    scale: 0.80,
-    opacity: 0.32,
+    y: 206,
+    z: -95,
+    rotateX: -32,
+    scale: 0.82,
+    opacity: 0.50,
     isForefront: true,
     isCenter: false,
     boxShadow: '0 -24px 52px -8px rgba(0,0,0,0.88), 0 -12px 28px rgba(0,0,0,0.7)',
-    shadowOverlayOpacity: 0.45,
+    shadowOverlayOpacity: 0.35,
   },
   [5]: {
-    y: 360,
-    z: -210,
-    rotateX: -58,
-    scale: 0.68,
-    opacity: 0,
+    y: 290,
+    z: -170,
+    rotateX: -46,
+    scale: 0.72,
+    opacity: 0.15,
     isForefront: false,
     isCenter: false,
     boxShadow: '0 -32px 64px -12px rgba(0,0,0,0.92), 0 0 40px rgba(0,0,0,0.85)',
-    shadowOverlayOpacity: 0.65,
+    shadowOverlayOpacity: 0.60,
   },
 };
 
@@ -593,10 +673,10 @@ function getContinuousSlotConfig(d: number) {
   if (d <= -2) {
     const extra = -2 - d;
     return {
-      y: -360 - extra * 125,
-      z: -210 - extra * 70,
-      rotateX: Math.min(85, 58 + extra * 15),
-      scale: Math.max(0.4, 0.68 - extra * 0.1),
+      y: -290 - extra * 90,
+      z: -170 - extra * 55,
+      rotateX: Math.min(85, 46 + extra * 15),
+      scale: Math.max(0.4, 0.72 - extra * 0.1),
       opacity: 0,
       isForefront: false,
       isCenter: false,
@@ -608,10 +688,10 @@ function getContinuousSlotConfig(d: number) {
   if (d >= 5) {
     const extra = d - 5;
     return {
-      y: 360 + extra * 125,
-      z: -210 - extra * 70,
-      rotateX: Math.max(-85, -58 - extra * 15),
-      scale: Math.max(0.4, 0.68 - extra * 0.1),
+      y: 290 + extra * 90,
+      z: -170 - extra * 55,
+      rotateX: Math.max(-85, -46 - extra * 15),
+      scale: Math.max(0.4, 0.72 - extra * 0.1),
       opacity: 0,
       isForefront: false,
       isCenter: false,
@@ -1261,7 +1341,7 @@ export default function RotatingDial() {
   const [visualOffset, setVisualOffset] = useState(0);
   const step = Math.round(visualOffset);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isMuted, setIsMuted] = useState<boolean>(() => getStoredMuteState()); // Persisted mute state across sessions
+  const [isMuted, setIsMuted] = useState<boolean>(true); // Volume OFF when loading app
   const [hasInteractedSound, setHasInteractedSound] = useState(false);
 
   // 10 Dial Sound Themes management (Persisted across sessions)
@@ -1404,8 +1484,9 @@ export default function RotatingDial() {
     }, 45);
   }, [ensureAudioUnlocked, playDialSound]);
 
-  // Universal User-Interaction Listener: prepares audio context so on unmute sound activates instantly
+  // Universal User-Interaction Listener: enforces volume OFF on load, prepares audio context so on unmute sound activates instantly
   useEffect(() => {
+    setStoredMuteState(true);
     const cleanup = initUserInteractionAudioUnlock();
     return cleanup;
   }, []);
@@ -2374,15 +2455,15 @@ export default function RotatingDial() {
 
       {/* 3D Scene Viewport */}
       <div
-        className="relative w-full max-w-[560px] flex-1 flex items-center justify-center -mt-1 sm:-mt-2 overflow-visible"
+        className="relative w-full max-w-[560px] flex-1 flex items-center justify-center -mt-4 sm:-mt-8 md:-mt-14 overflow-visible"
         style={{
           perspective: '1100px',
-          perspectiveOrigin: '50% 50%',
+          perspectiveOrigin: '50% 46%',
         }}
       >
-        {/* Dial Cylinder Container */}
+        {/* Dial Cylinder Container: Shifted a little bit more upward */}
         <div
-          className="relative w-full h-full min-h-[560px] flex items-center justify-center"
+          className="relative w-full h-full min-h-[480px] sm:min-h-[520px] flex items-center justify-center -translate-y-4 sm:-translate-y-7 md:-translate-y-10"
           style={{
             transformStyle: 'preserve-3d',
           }}
@@ -2412,7 +2493,7 @@ export default function RotatingDial() {
                   backfaceVisibility: 'hidden',
                   WebkitBackfaceVisibility: 'hidden',
                 }}
-                className={`absolute w-[88vw] max-w-[460px] h-[78px] px-6 py-3.5 rounded-xl flex items-center justify-between group outline-none touch-manipulation active:scale-[0.98] ${
+                className={`absolute w-[88vw] sm:w-[84vw] max-w-[460px] h-[72px] sm:h-[76px] px-5 sm:px-6 py-3 rounded-xl flex items-center justify-between group outline-none touch-manipulation active:scale-[0.98] ${
                   !isClickable ? 'cursor-not-allowed' : 'cursor-pointer'
                 } ${
                   isReturnItem

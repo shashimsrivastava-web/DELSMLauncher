@@ -1,5 +1,5 @@
 // Universal Web Audio Singleton & Interaction Auto-Unlocker
-// Launches app muted by default so clicking UNMUTE instantly wakes the audio pipeline.
+// Guarantees volume is always OFF (muted) when loading the app.
 
 let globalAudioCtx: AudioContext | null = null;
 let isAudioEngineUnlocked = false;
@@ -13,23 +13,20 @@ const SILENT_WAV_DATA_URI =
 
 let fallbackAudioElement: HTMLAudioElement | null = null;
 
+/**
+ * Returns initial mute state when loading the app.
+ * Always returns true so the app loads with volume OFF.
+ */
 export function getStoredMuteState(): boolean {
-  if (typeof window === 'undefined') return true;
-  try {
-    const val = localStorage.getItem(STORAGE_KEY_MUTED);
-    // Default is TRUE (Launched Muted), unless explicitly unmuted ('false')
-    return val !== 'false';
-  } catch {
-    return true;
-  }
+  return true;
 }
 
 export function setStoredMuteState(muted: boolean): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEY_MUTED, muted ? 'true' : 'false');
+    sessionStorage.setItem(STORAGE_KEY_MUTED, muted ? 'true' : 'false');
   } catch {
-    // localStorage unavailable
+    // sessionStorage unavailable
   }
 }
 
@@ -150,7 +147,7 @@ export function unlockAudioContext(): Promise<AudioContext | null> {
 
 /**
  * Attaches high-priority capturing event listeners on all primary user interactions
- * to prepare and unlock audio instantly when unmuted.
+ * to prepare and unlock audio instantly when the user chooses to unmute.
  */
 export function initUserInteractionAudioUnlock(onUnlocked?: () => void): () => void {
   if (typeof window === 'undefined') return () => {};
