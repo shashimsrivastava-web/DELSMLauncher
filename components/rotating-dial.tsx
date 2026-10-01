@@ -179,6 +179,16 @@ const MAIN_LINKS: DialLinkItem[] = [
     sourceDialTitle: 'Main Landing Page',
   },
   {
+    id: 'credentials-x',
+    title: 'Credentials X',
+    url: 'https://credentials-x.vercel.app/',
+    domain: 'credentials-x.vercel.app',
+    category: 'Credentials & Access',
+    type: 'link',
+    sourceDialKey: 'main',
+    sourceDialTitle: 'Main Landing Page',
+  },
+  {
     id: 'lhg-ops-expert',
     title: 'LHG Ops Expert',
     url: 'https://gemini.google.com/gem/1KqT7vrzJax38k7Z-lK0wXtqKlecq7Dd_?usp=sharing',
@@ -481,88 +491,77 @@ const ALL_SEARCHABLE_ITEMS: DialLinkItem[] = [
   ...LL_LINKS.filter((item) => item.type !== 'back'),
 ];
 
-// Helper: Levenshtein distance for fuzzy typo handling
-function levenshteinDistance(a: string, b: string): number {
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-  const matrix: number[][] = [];
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i];
+/**
+ * Direct non-fuzzy, case-insensitive text matching against all items, links, domains, categories, and dials.
+ * Checks for direct substring inclusion and tokenized word containment.
+ */
+function matchItemExactText(query: string, item: DialLinkItem): { isMatch: boolean; score: number } {
+  const cleanQ = query.toLowerCase().trim();
+  if (!cleanQ) return { isMatch: false, score: 0 };
+
+  const title = (item.title || '').toLowerCase();
+  const url = (item.url || '').toLowerCase();
+  const domain = (item.domain || '').toLowerCase();
+  const category = (item.category || '').toLowerCase();
+  const subtitle = (item.subtitle || '').toLowerCase();
+  const sourceDial = (item.sourceDialTitle || '').toLowerCase();
+
+  // Full composite searchable text of the item
+  const combinedText = `${title} ${url} ${domain} ${category} ${subtitle} ${sourceDial}`;
+
+  // 1. Direct full phrase exact matching
+  if (title === cleanQ) {
+    return { isMatch: true, score: 10000 };
   }
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j;
+  if (title.startsWith(cleanQ)) {
+    return { isMatch: true, score: 8500 - title.length };
   }
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
-        );
+  if (title.includes(cleanQ)) {
+    const idx = title.indexOf(cleanQ);
+    return { isMatch: true, score: 7000 - idx * 10 };
+  }
+  if (url.includes(cleanQ) || domain.includes(cleanQ)) {
+    return { isMatch: true, score: 5500 };
+  }
+  if (category.includes(cleanQ) || subtitle.includes(cleanQ) || sourceDial.includes(cleanQ)) {
+    return { isMatch: true, score: 4500 };
+  }
+
+  // 2. Word-by-word tokenized text matching (all typed words must exist in item)
+  const words = cleanQ.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return { isMatch: false, score: 0 };
+
+  // STRICT TEXT MATCH: Every single word entered must be present in the item
+  const allWordsMatched = words.every((word) => combinedText.includes(word));
+  if (!allWordsMatched) {
+    return { isMatch: false, score: 0 };
+  }
+
+  // Calculate score for multi-word exact matches based on relevance
+  let wordScore = 2500;
+  let wordsInTitleCount = 0;
+
+  for (const word of words) {
+    if (title.includes(word)) {
+      wordsInTitleCount++;
+      wordScore += 400;
+      if (title.startsWith(word) || title.includes(' ' + word)) {
+        wordScore += 200;
       }
     }
-  }
-  return matrix[b.length][a.length];
-}
-
-// Helper: Calculate fuzzy matching score
-function calculateFuzzyScore(query: string, text: string): number {
-  const q = query.toLowerCase().trim();
-  const t = text.toLowerCase().trim();
-  if (!q || !t) return 0;
-
-  // Exact match
-  if (t === q) return 1000;
-
-  // Prefix match
-  if (t.startsWith(q)) return 500 + Math.max(0, 100 - t.length);
-
-  // Word boundary match (e.g. " ops", " dgr", " safety")
-  const wordBoundaryIdx = t.indexOf(' ' + q);
-  if (wordBoundaryIdx !== -1) return 400 + Math.max(0, 100 - wordBoundaryIdx);
-
-  // Substring match
-  const subIdx = t.indexOf(q);
-  if (subIdx !== -1) return 300 + Math.max(0, 100 - subIdx);
-
-  // Acronym match (e.g., "dgr", "ped", "sop", "wt")
-  const words = t.split(/[\s\-_\/]+/);
-  const acronym = words.map((w) => w[0]).join('');
-  if (acronym.includes(q)) return 260;
-
-  // In-order character sequence
-  let qIdx = 0;
-  let score = 0;
-  let consecutive = 0;
-  for (let i = 0; i < t.length && qIdx < q.length; i++) {
-    if (t[i] === q[qIdx]) {
-      qIdx++;
-      consecutive++;
-      score += 15 + consecutive * 8;
-    } else {
-      consecutive = 0;
+    if (url.includes(word) || domain.includes(word)) {
+      wordScore += 250;
     }
-  }
-  if (qIdx === q.length) {
-    return Math.max(score, 60);
-  }
-
-  // Nearest match for typos if query is at least 3 characters
-  if (q.length >= 3) {
-    // Check against whole text or individual words
-    for (const word of words) {
-      if (Math.abs(word.length - q.length) <= 2) {
-        const dist = levenshteinDistance(q, word);
-        if (dist <= 2) {
-          return 120 - dist * 35;
-        }
-      }
+    if (category.includes(word)) {
+      wordScore += 150;
     }
   }
 
-  return 0;
+  if (wordsInTitleCount === words.length) {
+    wordScore += 1500;
+  }
+
+  return { isMatch: true, score: wordScore };
 }
 
 interface SlotConfig {
@@ -578,7 +577,7 @@ interface SlotConfig {
 }
 
 const SLOT_CONFIGS: Record<number, SlotConfig> = {
-  [-2]: {
+  [-3]: {
     y: -290,
     z: -170,
     rotateX: 46,
@@ -589,7 +588,7 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     boxShadow: '0 32px 64px -12px rgba(0,0,0,0.92), 0 0 40px rgba(0,0,0,0.85)',
     shadowOverlayOpacity: 0.60,
   },
-  [-1]: {
+  [-2]: {
     y: -188,
     z: -95,
     rotateX: 32,
@@ -600,7 +599,7 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     boxShadow: '0 24px 52px -8px rgba(0,0,0,0.88), 0 12px 28px rgba(0,0,0,0.7)',
     shadowOverlayOpacity: 0.35,
   },
-  [0]: {
+  [-1]: {
     y: -104,
     z: -42,
     rotateX: 18,
@@ -611,7 +610,7 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     boxShadow: '0 16px 40px -6px rgba(0,0,0,0.75), 0 8px 18px rgba(0,0,0,0.5)',
     shadowOverlayOpacity: 0.16,
   },
-  [1]: {
+  [0]: {
     y: -30,
     z: 22,
     rotateX: 6,
@@ -622,7 +621,7 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     boxShadow: '0 10px 32px -4px rgba(0,0,0,0.55), 0 0 28px rgba(56,189,248,0.22)',
     shadowOverlayOpacity: 0,
   },
-  [2]: {
+  [1]: {
     y: 50,
     z: 22,
     rotateX: -6,
@@ -633,7 +632,7 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     boxShadow: '0 10px 32px -4px rgba(0,0,0,0.55), 0 0 28px rgba(56,189,248,0.22)',
     shadowOverlayOpacity: 0,
   },
-  [3]: {
+  [2]: {
     y: 124,
     z: -42,
     rotateX: -18,
@@ -644,7 +643,7 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     boxShadow: '0 -16px 40px -6px rgba(0,0,0,0.75), 0 -8px 18px rgba(0,0,0,0.5)',
     shadowOverlayOpacity: 0.16,
   },
-  [4]: {
+  [3]: {
     y: 206,
     z: -95,
     rotateX: -32,
@@ -655,7 +654,7 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
     boxShadow: '0 -24px 52px -8px rgba(0,0,0,0.88), 0 -12px 28px rgba(0,0,0,0.7)',
     shadowOverlayOpacity: 0.35,
   },
-  [5]: {
+  [4]: {
     y: 290,
     z: -170,
     rotateX: -46,
@@ -670,8 +669,8 @@ const SLOT_CONFIGS: Record<number, SlotConfig> = {
 
 // Continuous Hermite-interpolated 3D slot configurations for physical inertia and fluid analog glide
 function getContinuousSlotConfig(d: number) {
-  if (d <= -2) {
-    const extra = -2 - d;
+  if (d <= -3) {
+    const extra = -3 - d;
     return {
       y: -290 - extra * 90,
       z: -170 - extra * 55,
@@ -685,8 +684,8 @@ function getContinuousSlotConfig(d: number) {
       visible: false,
     };
   }
-  if (d >= 5) {
-    const extra = d - 5;
+  if (d >= 4) {
+    const extra = d - 4;
     return {
       y: 290 + extra * 90,
       z: -170 - extra * 55,
@@ -703,7 +702,7 @@ function getContinuousSlotConfig(d: number) {
 
   const baseSlot = Math.floor(d);
   const frac = d - baseSlot;
-  const c0 = SLOT_CONFIGS[baseSlot];
+  const c0 = SLOT_CONFIGS[baseSlot] || SLOT_CONFIGS[0];
   const c1 = SLOT_CONFIGS[baseSlot + 1] || c0;
 
   // Smooth Hermite cubic interpolation for zero velocity derivative jitter at slot boundaries
@@ -717,12 +716,12 @@ function getContinuousSlotConfig(d: number) {
   const shadowOverlayOpacity =
     c0.shadowOverlayOpacity + (c1.shadowOverlayOpacity - c0.shadowOverlayOpacity) * t;
 
-  const isCenter = Math.abs(d - 1.0) < 0.45 || Math.abs(d - 2.0) < 0.45;
-  const isForefront = d >= -0.5 && d <= 4.5;
+  const isCenter = Math.abs(d - 0.0) < 0.45 || Math.abs(d - 1.0) < 0.45;
+  const isForefront = d >= -1.5 && d <= 2.5;
 
   const boxShadow = isCenter
     ? '0 10px 32px -4px rgba(0,0,0,0.55), 0 0 28px rgba(56,189,248,0.22)'
-    : d < 1.5
+    : d < 0.5
     ? '0 16px 40px -6px rgba(0,0,0,0.75), 0 8px 18px rgba(0,0,0,0.5)'
     : '0 -16px 40px -6px rgba(0,0,0,0.75), 0 -8px 18px rgba(0,0,0,0.5)';
 
@@ -1586,34 +1585,30 @@ export default function RotatingDial() {
 
   const isSearchActive = searchQuery.trim().length > 0;
 
-  // Filter links through fuzzy scoring
+  // Filter links through exact, non-fuzzy, case-insensitive text matching across all items and links
   const searchResults = useMemo(() => {
     const q = searchQuery.trim();
     if (!q) return [];
 
-    const scored = ALL_SEARCHABLE_ITEMS.map((item) => {
-      const titleScore = calculateFuzzyScore(q, item.title) * 2.0;
-      const domainScore = calculateFuzzyScore(q, item.domain) * 1.2;
-      const catScore = calculateFuzzyScore(q, item.category) * 1.5;
-      const dialScore = calculateFuzzyScore(q, item.sourceDialTitle || '') * 1.1;
-      const subScore = item.subtitle ? calculateFuzzyScore(q, item.subtitle) * 1.2 : 0;
+    const scoredMatches: { item: DialLinkItem; score: number }[] = [];
 
-      const maxScore = Math.max(titleScore, domainScore, catScore, dialScore, subScore);
-      return { item, score: maxScore };
-    });
+    for (const item of ALL_SEARCHABLE_ITEMS) {
+      const matchResult = matchItemExactText(q, item);
+      if (matchResult.isMatch) {
+        scoredMatches.push({ item, score: matchResult.score });
+      }
+    }
 
-    const matches = scored
-      .filter((entry) => entry.score > 40)
-      .sort((a, b) => b.score - a.score)
-      .map((entry) => entry.item);
+    // Sort strictly matching items by relevance score
+    scoredMatches.sort((a, b) => b.score - a.score);
 
-    // Deduplicate items if identical url/id appears in multiple places
+    // Deduplicate items if identical id appears in multiple dials
     const seen = new Set<string>();
     const uniqueMatches: DialLinkItem[] = [];
-    for (const match of matches) {
-      if (!seen.has(match.id)) {
-        seen.add(match.id);
-        uniqueMatches.push(match);
+    for (const entry of scoredMatches) {
+      if (!seen.has(entry.item.id)) {
+        seen.add(entry.item.id);
+        uniqueMatches.push(entry.item);
       }
     }
 
@@ -2116,16 +2111,16 @@ export default function RotatingDial() {
       return;
     }
 
-    // Tap to center: If a user taps on an upper (slotOffset <= 0.6) or lower (slotOffset >= 2.4) visible card,
+    // Tap to center: If a user taps on an upper (slotOffset <= -0.45) or lower (slotOffset >= 1.45) visible card,
     // smoothly glide the dial with physical deceleration to bring that item into center focus
-    if (slotOffset <= 0.6) {
+    if (slotOffset <= -0.45) {
       e.preventDefault();
-      glideToSlot(Math.round(offsetRef.current + slotOffset - 1));
+      glideToSlot(Math.round(offsetRef.current + slotOffset));
       return;
     }
-    if (slotOffset >= 2.4) {
+    if (slotOffset >= 1.45) {
       e.preventDefault();
-      glideToSlot(Math.round(offsetRef.current + slotOffset - 2));
+      glideToSlot(Math.round(offsetRef.current + slotOffset - 1));
       return;
     }
 
@@ -2193,53 +2188,129 @@ export default function RotatingDial() {
       {/* Top Header: Full Screen Width Search Bar + DELSM LaunchPad & Right-Aligned Volume Controller + Quick Switch DIAL Bar */}
       <header className="z-30 w-full max-w-full px-2.5 sm:px-5 pt-2 sm:pt-3 flex flex-col items-center gap-1.5 sm:gap-2 shrink-0">
         {/* 1. Full Screen Width Search Bar with 3D Depth Search Icon right-aligned */}
-        <div className="relative w-full max-w-full flex items-center">
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search all DIALs (e.g. Checklists, DGR, OPS, Ramp, Star, LL)..."
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
-            style={{ fontSize: '16px' }}
-            className="w-full pl-4 sm:pl-5 pr-20 sm:pr-24 py-2 sm:py-2.5 rounded-xl bg-neutral-900/90 border border-white/20 text-neutral-100 placeholder-neutral-500 text-[16px] font-medium tracking-tight shadow-xl backdrop-blur-md focus:outline-none focus:border-sky-400/60 focus:ring-2 focus:ring-sky-400/20 transition-all touch-auto pointer-events-auto"
-          />
+        <div className="relative w-full max-w-full flex flex-col">
+          <div className="relative w-full max-w-full flex items-center">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search all DIALs (e.g. Cred, Checklists, DGR, OPS, Ramp, Star, LL)..."
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              style={{ fontSize: '16px' }}
+              className="w-full pl-4 sm:pl-5 pr-20 sm:pr-24 py-2 sm:py-2.5 rounded-xl bg-neutral-900/90 border border-white/20 text-neutral-100 placeholder-neutral-500 text-[16px] font-medium tracking-tight shadow-xl backdrop-blur-md focus:outline-none focus:border-sky-400/60 focus:ring-2 focus:ring-sky-400/20 transition-all touch-auto pointer-events-auto"
+            />
 
-          {/* Right-aligned controls: Clear search + 3D Search Icon with Depth + kbd shortcut */}
-          <div className="absolute right-2 sm:right-2.5 flex items-center gap-1.5 pointer-events-auto">
-            {isSearchActive && (
+            {/* Right-aligned controls: Clear search + 3D Search Icon with Depth + kbd shortcut */}
+            <div className="absolute right-2 sm:right-2.5 flex items-center gap-1.5 pointer-events-auto">
+              {isSearchActive && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  title="Clear search"
+                  className="p-1 rounded-md text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+
+              {/* Tactile 3D Search Icon with physical depth and metallic bevel */}
               <button
                 type="button"
-                onClick={clearSearch}
-                title="Clear search"
-                className="p-1 rounded-md text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                onClick={() => searchInputRef.current?.focus()}
+                title="Search DIALs"
+                aria-label="Search DIALs"
+                className="relative group flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-b from-sky-400/30 via-slate-800 to-[#07132a] border border-sky-400/60 shadow-[0_4px_0_#020b18,0_6px_12px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_-1px_2px_rgba(0,0,0,0.7)] active:translate-y-[2px] active:shadow-[0_2px_0_#020b18,0_2px_6px_rgba(0,0,0,0.8),inset_0_1px_2px_rgba(0,0,0,0.9)] transition-all cursor-pointer select-none"
+                style={{
+                  transformStyle: 'preserve-3d',
+                }}
               >
-                <X className="w-4 h-4" />
+                <Search className="w-4 h-4 text-sky-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] group-hover:text-white group-hover:scale-105 transition-all" />
+                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-sky-400 shadow-[0_0_6px_#38bdf8]" />
               </button>
-            )}
 
-            {/* Tactile 3D Search Icon with physical depth and metallic bevel */}
-            <button
-              type="button"
-              onClick={() => searchInputRef.current?.focus()}
-              title="Search DIALs"
-              aria-label="Search DIALs"
-              className="relative group flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-b from-sky-400/30 via-slate-800 to-[#07132a] border border-sky-400/60 shadow-[0_4px_0_#020b18,0_6px_12px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_-1px_2px_rgba(0,0,0,0.7)] active:translate-y-[2px] active:shadow-[0_2px_0_#020b18,0_2px_6px_rgba(0,0,0,0.8),inset_0_1px_2px_rgba(0,0,0,0.9)] transition-all cursor-pointer select-none"
-              style={{
-                transformStyle: 'preserve-3d',
-              }}
-            >
-              <Search className="w-4 h-4 text-sky-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] group-hover:text-white group-hover:scale-105 transition-all" />
-              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-sky-400 shadow-[0_0_6px_#38bdf8]" />
-            </button>
-
-            <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-mono text-neutral-400 bg-white/5 rounded border border-white/10">
-              /
-            </kbd>
+              <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-mono text-neutral-400 bg-white/5 rounded border border-white/10">
+                /
+              </kbd>
+            </div>
           </div>
+
+          {/* Instant Search Results Dropdown Flyout for 1-Tap Direct Launch */}
+          {isSearchActive && (
+            <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-neutral-900/98 border border-sky-400/50 rounded-xl shadow-[0_12px_36px_rgba(0,0,0,0.9),0_0_24px_rgba(56,189,248,0.25)] backdrop-blur-xl overflow-hidden pointer-events-auto animate-in fade-in slide-in-from-top-1 duration-150">
+              {/* Header badge */}
+              <div className="flex items-center justify-between px-3.5 py-2 bg-neutral-950/80 border-b border-white/10 text-[11px] font-mono">
+                <div className="flex items-center gap-1.5 text-sky-300 font-semibold">
+                  <Search className="w-3.5 h-3.5 text-sky-400" />
+                  <span>
+                    {searchResults.length > 0
+                      ? `${searchResults.length} Match${searchResults.length === 1 ? '' : 'es'} for "${searchQuery.trim()}"`
+                      : `0 Matches for "${searchQuery.trim()}"`}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="text-neutral-400 hover:text-white text-[10px] px-1.5 py-0.5 rounded hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  Clear & Close
+                </button>
+              </div>
+
+              {/* Quick Results List */}
+              <div className="max-h-[42vh] overflow-y-auto divide-y divide-white/5">
+                {searchResults.length > 0 ? (
+                  searchResults.map((matchItem, matchIdx) => (
+                    <a
+                      key={`search-drop-${matchItem.id}-${matchIdx}`}
+                      href={matchItem.url || '#'}
+                      target={matchItem.url ? '_blank' : undefined}
+                      rel={matchItem.url ? 'noopener noreferrer' : undefined}
+                      onClick={(e) => handleAction(matchItem, 0, e)}
+                      className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-sky-500/15 transition-all group cursor-pointer"
+                    >
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono text-neutral-400">
+                          <span className="text-sky-400 font-bold uppercase">{matchItem.category}</span>
+                          <span>·</span>
+                          <span className="truncate text-neutral-300">{matchItem.domain}</span>
+                          {matchItem.sourceDialTitle && (
+                            <>
+                              <span>·</span>
+                              <span className="text-amber-400 truncate">{matchItem.sourceDialTitle}</span>
+                            </>
+                          )}
+                        </div>
+                        <span className="text-sm font-bold text-white group-hover:text-sky-200 transition-colors truncate">
+                          {matchItem.title}
+                        </span>
+                      </div>
+                      <div className="shrink-0 flex items-center gap-1 px-2 py-1 rounded bg-sky-500/20 border border-sky-400/40 text-[10px] font-mono text-sky-300 group-hover:bg-sky-400 group-hover:text-neutral-950 transition-all font-semibold">
+                        <span>{matchItem.type === 'link' ? 'OPEN' : 'VIEW'}</span>
+                        {matchItem.type === 'link' ? (
+                          <ArrowUpRight className="w-3 h-3" />
+                        ) : (
+                          <ChevronRight className="w-3 h-3" />
+                        )}
+                      </div>
+                    </a>
+                  ))
+                ) : (
+                  <div className="p-4 text-center">
+                    <p className="text-sm text-neutral-300 font-medium">
+                      No matches found for <span className="text-amber-300 font-mono">&quot;{searchQuery.trim()}&quot;</span>
+                    </p>
+                    <p className="text-[11px] text-neutral-400 mt-1">
+                      Check spelling or search by keywords (e.g. Cred, Forms, TAC, Stock, DGR, Checklist)
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 2. DELSM LaunchPad Banner + Volume Icon: Together taking the entire width of the screen */}
