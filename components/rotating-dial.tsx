@@ -297,6 +297,16 @@ const OPS_LINKS: DialLinkItem[] = [
     sourceDialTitle: 'OPS Page DIAL',
   },
   {
+    id: 'ops-a350-structural-awareness',
+    title: 'A350 Structural Awareness Briefing Video',
+    url: 'https://youtu.be/QujbtI1Dn5Q',
+    domain: 'youtu.be',
+    category: 'Aircraft Briefing Video',
+    type: 'link',
+    sourceDialKey: 'ops',
+    sourceDialTitle: 'OPS Page DIAL',
+  },
+  {
     id: 'ops-read-and-sign',
     title: 'Read and Sign for AHD/AHI App (Under Construction)',
     subtitle: 'Under Construction – N/A',
