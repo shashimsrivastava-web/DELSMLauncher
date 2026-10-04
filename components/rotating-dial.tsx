@@ -17,7 +17,7 @@ import {
 } from '@/lib/audio-manager';
 
 export type LinkItemType = 'link' | 'dial' | 'disabled' | 'back';
-export type DialKey = 'main' | 'checklists' | 'dgr' | 'ops' | 'll';
+export type DialKey = 'main' | 'checklists' | 'dgr' | 'ops' | 'll' | 'hh';
 
 export interface DialLinkItem {
   id: string;
@@ -52,6 +52,17 @@ const MAIN_LINKS: DialLinkItem[] = [
     category: 'Checklists Dial',
     type: 'dial',
     targetDial: 'checklists',
+    sourceDialKey: 'main',
+    sourceDialTitle: 'Main Landing Page',
+  },
+  {
+    id: 'heart-and-handbook-dial',
+    title: 'Heart and Handbook Videos',
+    subtitle: 'Open Heart & Handbook Dial',
+    domain: 'Heart & Handbook Videos',
+    category: 'Culture & Training',
+    type: 'dial',
+    targetDial: 'hh',
     sourceDialKey: 'main',
     sourceDialTitle: 'Main Landing Page',
   },
@@ -526,6 +537,70 @@ const CHECKLISTS_LINKS: DialLinkItem[] = [
   },
 ];
 
+// 6. HEART & HANDBOOK DIAL
+const HH_LINKS: DialLinkItem[] = [
+  {
+    id: 'hh-explanatory-video',
+    title: 'Explanatory Video Heart and the Handbook',
+    url: 'https://youtu.be/YpFqY7wYdLA',
+    domain: 'youtu.be',
+    category: 'H&H Video',
+    type: 'link',
+    sourceDialKey: 'hh',
+    sourceDialTitle: 'Heart & Handbook DIAL',
+  },
+  {
+    id: 'hh-getting-lost',
+    title: 'Getting Lost! H&H',
+    url: 'https://youtu.be/KjhhwMfV2js',
+    domain: 'youtu.be',
+    category: 'H&H Video',
+    type: 'link',
+    sourceDialKey: 'hh',
+    sourceDialTitle: 'Heart & Handbook DIAL',
+  },
+  {
+    id: 'hh-too-late',
+    title: 'Too Late! H&H',
+    url: 'https://youtu.be/lczo4kqFkRE',
+    domain: 'youtu.be',
+    category: 'H&H Video',
+    type: 'link',
+    sourceDialKey: 'hh',
+    sourceDialTitle: 'Heart & Handbook DIAL',
+  },
+  {
+    id: 'hh-autopilot',
+    title: 'AutoPilot! H&H',
+    url: 'https://youtu.be/lczo4kqFkRE',
+    domain: 'youtu.be',
+    category: 'H&H Video',
+    type: 'link',
+    sourceDialKey: 'hh',
+    sourceDialTitle: 'Heart & Handbook DIAL',
+  },
+  {
+    id: 'hh-management-statements',
+    title: 'Management Statements',
+    url: 'https://youtu.be/oSa-Iy80mmI',
+    domain: 'youtu.be',
+    category: 'H&H Video',
+    type: 'link',
+    sourceDialKey: 'hh',
+    sourceDialTitle: 'Heart & Handbook DIAL',
+  },
+  {
+    id: 'hh-return-to-main',
+    title: 'Return to Main DIAL',
+    domain: 'Navigate to Main DIAL',
+    category: 'Navigation',
+    type: 'back',
+    targetDial: 'main',
+    sourceDialKey: 'hh',
+    sourceDialTitle: 'Heart & Handbook DIAL',
+  },
+];
+
 const DIAL_DATA: Record<
   DialKey,
   { title: string; links: DialLinkItem[] }
@@ -550,6 +625,10 @@ const DIAL_DATA: Record<
     title: 'LL Page DIAL',
     links: LL_LINKS,
   },
+  hh: {
+    title: 'Heart & Handbook',
+    links: HH_LINKS,
+  },
 };
 
 // All search-eligible unique items across all dials (excluding back buttons)
@@ -559,6 +638,7 @@ const ALL_SEARCHABLE_ITEMS: DialLinkItem[] = [
   ...DGR_LINKS.filter((item) => item.type !== 'back'),
   ...OPS_LINKS.filter((item) => item.type !== 'back'),
   ...LL_LINKS.filter((item) => item.type !== 'back'),
+  ...HH_LINKS.filter((item) => item.type !== 'back'),
 ];
 
 /**
@@ -1720,6 +1800,14 @@ export default function RotatingDial() {
         type: 'dial',
         targetDial: 'll',
       },
+      {
+        id: 'return-hh',
+        title: 'Go to Heart & Handbook DIAL',
+        domain: 'Heart & Handbook Videos',
+        category: 'Page Navigation',
+        type: 'dial',
+        targetDial: 'hh',
+      },
     ];
   }, []);
 
@@ -2564,7 +2652,7 @@ export default function RotatingDial() {
         <div className="w-full flex items-center justify-center sm:justify-end px-1 text-[11px] font-mono">
           <div className="flex items-center gap-1 shrink-0">
             <span className="text-neutral-500 hidden sm:inline mr-1">Switch:</span>
-            {(['main', 'checklists', 'dgr', 'ops', 'll'] as DialKey[]).map((key) => {
+            {(['main', 'checklists', 'dgr', 'ops', 'll', 'hh'] as DialKey[]).map((key) => {
               const isActive = activeDialKey === key && !isSearchActive;
               const labels: Record<DialKey, string> = {
                 main: 'Main',
@@ -2572,6 +2660,7 @@ export default function RotatingDial() {
                 dgr: 'DGR',
                 ops: 'OPS',
                 ll: 'LL',
+                hh: 'H&H',
               };
 
               return (
