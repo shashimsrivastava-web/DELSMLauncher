@@ -870,7 +870,9 @@ security@swiss.com`,
     type: 'contact',
     sourceDialKey: 'hub_contacts',
     sourceDialTitle: 'LHG HUB Contacts DIAL',
-    rawText: `Altea CM
+    rawText: `SHC: +49 69 696 95 900
+shc@dlh.de
+Altea CM
 Altea FM
 ADC: Option 1
 ETIX: Call +49 69696 91088
