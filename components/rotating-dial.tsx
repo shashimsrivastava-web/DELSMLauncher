@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
-import { ArrowUpRight, ChevronRight, ArrowLeft, Clock, Search, X, Layers, Volume2, VolumeX, RotateCw, RotateCcw, Check } from 'lucide-react';
+import { ArrowUpRight, ChevronRight, ArrowLeft, Clock, Search, X, Layers, Volume2, VolumeX, RotateCw, RotateCcw, Check, Phone } from 'lucide-react';
 import StarTrekBackground from './star-trek-background';
 import {
   getSharedAudioContext,
@@ -16,8 +16,8 @@ import {
   setStoredThemeId,
 } from '@/lib/audio-manager';
 
-export type LinkItemType = 'link' | 'dial' | 'disabled' | 'back';
-export type DialKey = 'main' | 'checklists' | 'dgr' | 'ops' | 'll' | 'hh';
+export type LinkItemType = 'link' | 'dial' | 'disabled' | 'back' | 'contact';
+export type DialKey = 'main' | 'checklists' | 'dgr' | 'ops' | 'll' | 'hh' | 'hub_contacts';
 
 export interface DialLinkItem {
   id: string;
@@ -30,6 +30,7 @@ export interface DialLinkItem {
   subtitle?: string;
   sourceDialKey?: DialKey;
   sourceDialTitle?: string;
+  rawText?: string;
 }
 
 // 1. MAIN LANDING PAGE LINKS (Sorted alphabetically in ascending order)
@@ -108,6 +109,17 @@ const MAIN_LINKS: DialLinkItem[] = [
     sourceDialTitle: 'Main Landing Page',
   },
   {
+    id: 'lhg-hub-contacts-dial',
+    title: 'LHG HUB Contacts',
+    subtitle: 'Open LHG HUB Contacts Dial',
+    domain: 'LHG HUB Contacts',
+    category: 'Contacts Dial',
+    type: 'dial',
+    targetDial: 'hub_contacts',
+    sourceDialKey: 'main',
+    sourceDialTitle: 'Main Landing Page',
+  },
+  {
     id: 'lhg-ops-expert',
     title: 'LHG Ops Expert',
     url: 'https://gemini.google.com/gem/1KqT7vrzJax38k7Z-lK0wXtqKlecq7Dd_?usp=sharing',
@@ -162,10 +174,10 @@ const MAIN_LINKS: DialLinkItem[] = [
   {
     id: 'read-and-sign',
     title: 'Read and Sign App',
-    subtitle: 'COMING SOON – No Link',
-    domain: 'COMING SOON – No Link',
+    url: 'https://read-x-compliance.vercel.app/',
+    domain: 'read-x-compliance.vercel.app',
     category: 'Compliance',
-    type: 'disabled',
+    type: 'link',
     sourceDialKey: 'main',
     sourceDialTitle: 'Main Landing Page',
   },
@@ -601,6 +613,283 @@ const HH_LINKS: DialLinkItem[] = [
   },
 ];
 
+// 7. LHG HUB CONTACTS DIAL (Sorted alphabetically in ascending order)
+const HUB_CONTACTS_LINKS: DialLinkItem[] = [
+  {
+    id: 'hub-avih-lounge',
+    title: 'AVIH Lounge FRA',
+    domain: 'lufthansa.com',
+    category: 'Hub Contacts',
+    type: 'contact',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+    rawText: `+49 69 69 627 406
+fra.avi.24ops@dlh.de
+(24/7)`,
+  },
+  {
+    id: 'hub-campus-helpdesk',
+    title: 'CAMPUS Helpdesk',
+    domain: 'lufthansa.com',
+    category: 'Hub Contacts',
+    type: 'contact',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+    rawText: `LH: IBM Campus Servicedesk
+00 80 000 340 300
+or
++49 461 1608 5040
+(all 24/7)`,
+  },
+  {
+    id: 'hub-crew-control',
+    title: 'Crew Control',
+    domain: 'lufthansa-group.com',
+    category: 'Hub Contacts',
+    type: 'contact',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+    rawText: `LH FRA: Global Crew Control
++49 69 696 96767
+fra.schichtleiter.crewcontrol@dlh.de
+(24/7)
+
+LH MUC: Global Crew Control
++49 89 977 5958
+crew.muc-schichtleiter@dlh.de
+(24/7)
+
+LX ZRH Crew Control
++41 44 564 46 00
+crewcontrol@swiss.com
+(24/7)`,
+  },
+  {
+    id: 'hub-dispatch',
+    title: 'Dispatch for Flight Plan',
+    domain: 'lufthansa-group.com',
+    category: 'Hub Contacts',
+    type: 'contact',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+    rawText: `LH FRA: Dispatch Ops Coord
++49 69 696 2534
+dispatch@dlh.de
+(24/7)
+
+LH MUC: Dispatch
++49 89 977 76460
+muc.hoc.dispatch@dlh.de
+(24/7)
+
+LX ZRH: Dispatch
++41 44 564 48 48
+flight-dispatch@swiss.com
+(24/7)`,
+  },
+  {
+    id: 'hub-gcc',
+    title: 'GCC',
+    domain: 'lufthansa-group.com',
+    category: 'Hub Contacts',
+    type: 'contact',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+    rawText: `GCC
++41 44 564 49 00
+GCC@lufthansa-group.com
+(24/7)`,
+  },
+  {
+    id: 'hub-hcc',
+    title: 'HUB Control Center',
+    domain: 'lufthansa-group.com',
+    category: 'Hub Contacts',
+    type: 'contact',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+    rawText: `LH FRA: HCC Duty Officer
++49 69 696 142555
+lgsfra.hdo@dlh.de
+(06:00 - 23:00 CET)
+
+HCC Duty Manager
++49 69 696 142600
+lgsfra.hdm@dlh.de
+(24/7)
+
+LH MUC: HOC
++49 89 977 76000
+muc.hoc.dutyofficer@dlh.de
+(24/7)
+
+HCC ZRH:
+HCC (ZRH only)
++41 44 564 45 80
+hubmanager@swiss.com
+(24/7)`,
+  },
+  {
+    id: 'hub-irreg-steering',
+    title: 'IRREG Steering',
+    domain: 'lufthansa-group.com',
+    category: 'Hub Contacts',
+    type: 'contact',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+    rawText: `PRC FRA: +49 69 696 142 571
+cad.fra@dlh.de
+(24/7)
+
+PRC MUC: +49 89 977 72 640
+muc.hoc.cad@dlh.de
+(24/7)
+
+PCC ZRH: +41 44 564 47 00
+PCC@swiss.com
+(24/7)`,
+  },
+  {
+    id: 'hub-look-contacts',
+    title: 'LHG Hub contacts in Look',
+    url: 'https://look.lufthansa-group.com/content/ng.html/document?path=%2Fcontent%2Ffind%2Fcommon%2Fwork-instructions%2Fen%2Fothers%2Flhg-ground-ops-contactlist',
+    domain: 'look.lufthansa-group.com',
+    category: 'Work Instructions',
+    type: 'link',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+  },
+  {
+    id: 'hub-load-control',
+    title: 'Load control (GLC/CLC)',
+    domain: 'lufthansa-group.com',
+    category: 'Hub Contacts',
+    type: 'contact',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+    rawText: `LH GLC
++27 21 879 7115
++27 21 879 7116
++49 69 3329 9615
++49 69 3329 9616
+(24/7)
+
+LX CLC CAS & BKK
++212 522 33 54 46
++66 2 134 2499
+(24/7)`,
+  },
+  {
+    id: 'hub-medical',
+    title: 'Medical (for LH See SARA App)',
+    domain: 'lufthansa.com',
+    category: 'Hub Contacts',
+    type: 'contact',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+    rawText: `LH MOC
++49 69 696 55077
+medicaloperation@dlh.de
+(06:00-22:30 CET)
+
+LX TQQ: ZRHLX0552
+SQQ/MEDA: ZRHLX0550
+productdistribution@swiss.com
+(06:00 - 18:15 CET)`,
+  },
+  {
+    id: 'hub-ops-control',
+    title: 'Ops Control Contacts',
+    domain: 'lufthansa-group.com',
+    category: 'Hub Contacts',
+    type: 'contact',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+    rawText: `LH FRA: Network Control Cont
++49 69 696 2622
+(24/7)
+
+Network Control Intercont
++49 69 696 2620
+(24/7)
+sno@dlh.de
+fra.interkont.pos1@dlh.de
+fra.kont.pos2@dlh.de
+
+LH MUC: Network Control Cont
++49 89 977 76410 / 20
+
+Network Control Intercont
++49 89 977 76430
+muc.hoc.occ@dlh.de
+(24/7)
+
+NOC ZRH:
++41 44 564 45 00
+NOC@swiss.com
+(24/7)
+
+ITA (AZ) FOC: OCC
++39 335 727 0687
+occ-dutymanager@ita-airways.com`,
+  },
+  {
+    id: 'hub-rbc',
+    title: 'RBC',
+    domain: 'lufthansa-group.com',
+    category: 'Hub Contacts',
+    type: 'contact',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+    rawText: `0008000501576
+Supervisor (only in emergency): +6620566898`,
+  },
+  {
+    id: 'hub-security-desk',
+    title: 'Security DESK',
+    domain: 'lufthansa-group.com',
+    category: 'Hub Contacts',
+    type: 'contact',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+    rawText: `LHG Security Desk: +49 69 696 22334
+secdesk@lufthansa-group.com
+(24/7)
+
+SWISS: Security
++41 44 564 44 11
+(outside office hours:
+NOC: +41 44 564 45 00)
+security@swiss.com`,
+  },
+  {
+    id: 'hub-shc-support',
+    title: 'SHC: system support / ADC / Ingenico / Documents',
+    domain: 'lufthansa-group.com',
+    category: 'Hub Contacts',
+    type: 'contact',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+    rawText: `Altea CM
+Altea FM
+ADC: Option 1
+ETIX: Call +49 69696 91088
+ehd@dlh.de
+Ingenico: Option 2
+USA AQQ (Secure Flight): +49 69696 51003`,
+  },
+  {
+    id: 'hub-return-to-main',
+    title: 'Return to Main DIAL',
+    domain: 'Navigate to Main DIAL',
+    category: 'Navigation',
+    type: 'back',
+    targetDial: 'main',
+    sourceDialKey: 'hub_contacts',
+    sourceDialTitle: 'LHG HUB Contacts DIAL',
+  },
+];
+
 const DIAL_DATA: Record<
   DialKey,
   { title: string; links: DialLinkItem[] }
@@ -629,6 +918,10 @@ const DIAL_DATA: Record<
     title: 'Heart & Handbook',
     links: HH_LINKS,
   },
+  hub_contacts: {
+    title: 'LHG HUB Contacts',
+    links: HUB_CONTACTS_LINKS,
+  },
 };
 
 // All search-eligible unique items across all dials (excluding back buttons)
@@ -639,6 +932,7 @@ const ALL_SEARCHABLE_ITEMS: DialLinkItem[] = [
   ...OPS_LINKS.filter((item) => item.type !== 'back'),
   ...LL_LINKS.filter((item) => item.type !== 'back'),
   ...HH_LINKS.filter((item) => item.type !== 'back'),
+  ...HUB_CONTACTS_LINKS.filter((item) => item.type !== 'back'),
 ];
 
 /**
@@ -1484,6 +1778,62 @@ function renderSoundTheme(ctx: AudioContext, themeId: SoundThemeId, direction: '
   }
 }
 
+function renderLineWithClickableLinks(line: string) {
+  const regex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})|(\+?[0-9][0-9\s\-()\/]{7,}[0-9])|(00\s?[0-9][0-9\s\-()\/]{6,}[0-9])/g;
+  
+  const matches = [...line.matchAll(regex)];
+  if (matches.length === 0) {
+    return <span>{line}</span>;
+  }
+
+  const elements: React.ReactNode[] = [];
+  let lastIdx = 0;
+
+  matches.forEach((match, mIdx) => {
+    const fullMatch = match[0];
+    const matchIndex = match.index!;
+
+    if (matchIndex > lastIdx) {
+      elements.push(<span key={`text-${mIdx}`}>{line.substring(lastIdx, matchIndex)}</span>);
+    }
+
+    const isEmail = fullMatch.includes('@');
+
+    if (isEmail) {
+      elements.push(
+        <a
+          key={`email-${mIdx}`}
+          href={`mailto:${fullMatch.trim()}`}
+          onClick={(e) => e.stopPropagation()}
+          className="text-sky-400 hover:text-sky-300 underline font-mono font-medium mx-0.5 px-1 py-0.5 rounded bg-sky-500/10 border border-sky-400/20 inline-flex items-center gap-1"
+        >
+          ✉️ {fullMatch}
+        </a>
+      );
+    } else {
+      const cleanPhone = fullMatch.replace(/[^\+\d]/g, '');
+      elements.push(
+        <a
+          key={`phone-${mIdx}`}
+          href={`tel:${cleanPhone}`}
+          onClick={(e) => e.stopPropagation()}
+          className="text-amber-400 hover:text-amber-300 underline font-mono font-bold mx-0.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-400/20 inline-flex items-center gap-1"
+        >
+          📞 {fullMatch}
+        </a>
+      );
+    }
+
+    lastIdx = matchIndex + fullMatch.length;
+  });
+
+  if (lastIdx < line.length) {
+    elements.push(<span key={`text-end`}>{line.substring(lastIdx)}</span>);
+  }
+
+  return <>{elements}</>;
+}
+
 export default function RotatingDial() {
   const [activeDialKey, setActiveDialKey] = useState<DialKey>('main');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1492,6 +1842,7 @@ export default function RotatingDial() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState<boolean>(true); // Volume OFF when loading app
   const [hasInteractedSound, setHasInteractedSound] = useState(false);
+  const [activeContactModalItem, setActiveContactModalItem] = useState<DialLinkItem | null>(null);
 
   // 10 Dial Sound Themes management (Persisted across sessions)
   const [selectedSoundThemeId, setSelectedSoundThemeId] = useState<SoundThemeId>(() => {
@@ -2296,6 +2647,13 @@ export default function RotatingDial() {
       return;
     }
 
+    if (item.type === 'contact') {
+      e.preventDefault();
+      triggerHapticFeedback(22);
+      setActiveContactModalItem(item);
+      return;
+    }
+
     if (item.type === 'back' && item.targetDial) {
       e.preventDefault();
       triggerHapticFeedback(18);
@@ -2652,7 +3010,7 @@ export default function RotatingDial() {
         <div className="w-full flex items-center justify-center sm:justify-end px-1 text-[11px] font-mono">
           <div className="flex items-center gap-1 shrink-0">
             <span className="text-neutral-500 hidden sm:inline mr-1">Switch:</span>
-            {(['main', 'checklists', 'dgr', 'ops', 'll', 'hh'] as DialKey[]).map((key) => {
+            {(['main', 'checklists', 'dgr', 'ops', 'll', 'hh', 'hub_contacts'] as DialKey[]).map((key) => {
               const isActive = activeDialKey === key && !isSearchActive;
               const labels: Record<DialKey, string> = {
                 main: 'Main',
@@ -2661,6 +3019,7 @@ export default function RotatingDial() {
                 ops: 'OPS',
                 ll: 'LL',
                 hh: 'H&H',
+                hub_contacts: 'Hub Contacts',
               };
 
               return (
@@ -2784,6 +3143,7 @@ export default function RotatingDial() {
                 >
                   {item.type === 'link' && <ArrowUpRight className="w-5 h-5" />}
                   {item.type === 'dial' && <ChevronRight className="w-5 h-5" />}
+                  {item.type === 'contact' && <Phone className="w-4 h-4 text-sky-400" />}
                   {item.type === 'back' && <ArrowLeft className="w-5 h-5 text-indigo-400" />}
                   {item.type === 'disabled' && <Clock className="w-4 h-4 text-amber-400/80" />}
                 </div>
@@ -2797,6 +3157,69 @@ export default function RotatingDial() {
       {toastMessage && (
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-lg bg-neutral-900/95 border border-white/20 text-neutral-200 text-xs sm:text-sm font-medium shadow-2xl backdrop-blur-md pointer-events-none transition-all">
           {toastMessage}
+        </div>
+      )}
+
+      {/* Contact Details Modal */}
+      {activeContactModalItem && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={activeContactModalItem.title}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150"
+          onClick={() => setActiveContactModalItem(null)}
+        >
+          <div
+            className="relative w-full max-w-xl max-h-[88vh] overflow-hidden flex flex-col rounded-2xl bg-neutral-900 border border-sky-400/50 shadow-[0_20px_60px_rgba(0,0,0,0.95),0_0_35px_rgba(56,189,248,0.25)] text-neutral-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 border-b border-white/10 bg-gradient-to-r from-sky-500/15 via-neutral-900 to-neutral-900">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xl sm:text-2xl">📞</span>
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold tracking-tight text-white">
+                    {activeContactModalItem.title}
+                  </h2>
+                  <p className="text-[11px] text-sky-300 font-mono">
+                    {activeContactModalItem.category} · Click phones to dial or emails to email
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveContactModalItem(null)}
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-2 font-mono text-xs sm:text-sm bg-neutral-950/65 whitespace-pre-wrap">
+              {activeContactModalItem.rawText ? (
+                activeContactModalItem.rawText.split('\n').map((line, idx) => (
+                  <div key={idx} className="min-h-[1.25rem] text-neutral-200">
+                    {renderLineWithClickableLinks(line)}
+                  </div>
+                ))
+              ) : (
+                <p className="text-neutral-400">No contact details available.</p>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-t border-white/10 bg-neutral-900 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setActiveContactModalItem(null)}
+                className="px-4 py-2 rounded-xl bg-sky-500/20 border border-sky-400/40 text-sky-200 hover:bg-sky-500/30 text-xs font-bold transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
