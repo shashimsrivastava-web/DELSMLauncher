@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from 'react';
 import Image from 'next/image';
 import { ArrowUpRight, ChevronRight, ArrowLeft, Clock, Search, X, Layers, Volume2, VolumeX, RotateCw, RotateCcw, Check, Phone } from 'lucide-react';
 import StarTrekBackground from './star-trek-background';
@@ -14,6 +14,7 @@ import {
   setStoredMuteState,
   getStoredThemeId,
   setStoredThemeId,
+  subscribeTheme,
 } from '@/lib/audio-manager';
 
 export type LinkItemType = 'link' | 'dial' | 'disabled' | 'back' | 'contact';
@@ -57,11 +58,11 @@ const MAIN_LINKS: DialLinkItem[] = [
     sourceDialTitle: 'Main Landing Page',
   },
   {
-    id: 'credentials-x',
-    title: 'Credentials X',
-    url: 'https://credentials-x.vercel.app/',
-    domain: 'credentials-x.vercel.app',
-    category: 'Credentials & Access',
+    id: 'read-and-sign',
+    title: 'Read and Sign App',
+    url: 'https://read-x-compliance.vercel.app/',
+    domain: 'read-x-compliance.vercel.app',
+    category: 'Compliance',
     type: 'link',
     sourceDialKey: 'main',
     sourceDialTitle: 'Main Landing Page',
@@ -167,16 +168,6 @@ const MAIN_LINKS: DialLinkItem[] = [
     url: 'http://packmandg.lufthansa-group.com/',
     domain: 'packmandg.lufthansa-group.com',
     category: 'Dangerous Goods',
-    type: 'link',
-    sourceDialKey: 'main',
-    sourceDialTitle: 'Main Landing Page',
-  },
-  {
-    id: 'read-and-sign',
-    title: 'Read and Sign App',
-    url: 'https://read-x-compliance.vercel.app/',
-    domain: 'read-x-compliance.vercel.app',
-    category: 'Compliance',
     type: 'link',
     sourceDialKey: 'main',
     sourceDialTitle: 'Main Landing Page',
@@ -331,11 +322,11 @@ const OPS_LINKS: DialLinkItem[] = [
   },
   {
     id: 'ops-read-and-sign',
-    title: 'Read and Sign for AHD/AHI App (Under Construction)',
-    subtitle: 'Under Construction – N/A',
-    domain: 'Under Construction',
+    title: 'Read & Sign App',
+    url: 'https://read-x-compliance.vercel.app/',
+    domain: 'read-x-compliance.vercel.app',
     category: 'AHD / AHI Compliance',
-    type: 'disabled',
+    type: 'link',
     sourceDialKey: 'ops',
     sourceDialTitle: 'OPS Page DIAL',
   },
@@ -1836,6 +1827,12 @@ function renderLineWithClickableLinks(line: string) {
   return <>{elements}</>;
 }
 
+const getThemeSnapshot = (): SoundThemeId => {
+  const stored = getStoredThemeId('mechanical');
+  return (SOUND_THEMES.some((t) => t.id === stored) ? stored : 'mechanical') as SoundThemeId;
+};
+const getServerThemeSnapshot = (): SoundThemeId => 'mechanical';
+
 export default function RotatingDial() {
   const [activeDialKey, setActiveDialKey] = useState<DialKey>('main');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1846,14 +1843,12 @@ export default function RotatingDial() {
   const [hasInteractedSound, setHasInteractedSound] = useState(false);
   const [activeContactModalItem, setActiveContactModalItem] = useState<DialLinkItem | null>(null);
 
-  // 10 Dial Sound Themes management (Persisted across sessions)
-  const [selectedSoundThemeId, setSelectedSoundThemeId] = useState<SoundThemeId>(() => {
-    const stored = getStoredThemeId('mechanical');
-    if (SOUND_THEMES.some((t) => t.id === stored)) {
-      return stored as SoundThemeId;
-    }
-    return 'mechanical';
-  });
+  // 10 Dial Sound Themes management (Persisted across sessions via useSyncExternalStore to eliminate hydration mismatch)
+  const selectedSoundThemeId = useSyncExternalStore(
+    subscribeTheme,
+    getThemeSnapshot,
+    getServerThemeSnapshot
+  );
   const [isSoundSelectorOpen, setIsSoundSelectorOpen] = useState(false);
   const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const didLongPressRef = useRef(false);
@@ -1952,7 +1947,6 @@ export default function RotatingDial() {
         nextTheme = SOUND_THEMES[nextIndex];
       }
 
-      setSelectedSoundThemeId(nextTheme.id);
       setStoredThemeId(nextTheme.id);
 
       triggerHapticFeedback([25, 45, 25]);

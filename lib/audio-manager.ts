@@ -30,23 +30,38 @@ export function setStoredMuteState(muted: boolean): void {
   }
 }
 
+const themeListeners = new Set<() => void>();
+let cachedThemeId: string | null = null;
+
+export function subscribeTheme(callback: () => void): () => void {
+  themeListeners.add(callback);
+  return () => {
+    themeListeners.delete(callback);
+  };
+}
+
 export function getStoredThemeId(fallback = 'mechanical'): string {
+  if (cachedThemeId !== null) return cachedThemeId;
   if (typeof window === 'undefined') return fallback;
   try {
     const val = localStorage.getItem(STORAGE_KEY_THEME);
-    return val || fallback;
+    cachedThemeId = val || fallback;
+    return cachedThemeId;
   } catch {
+    cachedThemeId = fallback;
     return fallback;
   }
 }
 
 export function setStoredThemeId(themeId: string): void {
+  cachedThemeId = themeId;
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEY_THEME, themeId);
   } catch {
     // localStorage unavailable
   }
+  themeListeners.forEach((cb) => cb());
 }
 
 /**
