@@ -43,3 +43,12 @@ input {
 .sound-prompt-pulse {
   animation: soundPromptBounce 2s ease-in-out infinite;
 }
+
+/* Hide scrollbar across all browsers while retaining touch & programmatic scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

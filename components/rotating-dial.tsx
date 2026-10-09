@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from 'react';
 import Image from 'next/image';
-import { ArrowUpRight, ChevronRight, ArrowLeft, Clock, Search, X, Layers, Volume2, VolumeX, RotateCw, RotateCcw, Check, Phone } from 'lucide-react';
+import { ArrowUpRight, ChevronRight, ChevronLeft, ArrowLeft, Clock, Search, X, Layers, Volume2, VolumeX, RotateCw, RotateCcw, Check, Phone } from 'lucide-react';
 import StarTrekBackground from './star-trek-background';
 import {
   getSharedAudioContext,
@@ -18,7 +18,7 @@ import {
 } from '@/lib/audio-manager';
 
 export type LinkItemType = 'link' | 'dial' | 'disabled' | 'back' | 'contact';
-export type DialKey = 'main' | 'checklists' | 'dgr' | 'ops' | 'll' | 'hh' | 'hub_contacts';
+export type DialKey = 'main' | 'checklists' | 'dgr' | 'ops' | 'll' | 'hh' | 'hub_contacts' | 'm365';
 
 export interface DialLinkItem {
   id: string;
@@ -99,6 +99,16 @@ const MAIN_LINKS: DialLinkItem[] = [
     sourceDialTitle: 'Main Landing Page',
   },
   {
+    id: 'ginger-lh-meal-ordering',
+    title: 'Ginger LH Meal Ordering',
+    url: 'https://ginger.lufthansagroup.com/',
+    domain: 'ginger.lufthansagroup.com',
+    category: 'Catering & Meal Ordering',
+    type: 'link',
+    sourceDialKey: 'main',
+    sourceDialTitle: 'Main Landing Page',
+  },
+  {
     id: 'heart-and-handbook-dial',
     title: 'Heart and Handbook Videos',
     subtitle: 'Open Heart & Handbook Dial',
@@ -152,6 +162,17 @@ const MAIN_LINKS: DialLinkItem[] = [
     sourceDialTitle: 'Main Landing Page',
   },
   {
+    id: 'm365-sharepoint-updates',
+    title: 'M365 SharePoint Updates',
+    subtitle: 'Open M365 SharePoint Updates Dial',
+    domain: 'M365 SharePoint Updates',
+    category: 'SharePoint Updates Dial',
+    type: 'dial',
+    targetDial: 'm365',
+    sourceDialKey: 'main',
+    sourceDialTitle: 'Main Landing Page',
+  },
+  {
     id: 'ops-page',
     title: 'OPS Page',
     subtitle: 'Open OPS Dial',
@@ -173,6 +194,16 @@ const MAIN_LINKS: DialLinkItem[] = [
     sourceDialTitle: 'Main Landing Page',
   },
   {
+    id: 'ramp-floater-details',
+    title: 'Ramp Floater details',
+    url: 'https://forms.cloud.microsoft/e/FPMWAUb3iA',
+    domain: 'forms.cloud.microsoft',
+    category: 'Forms Checklist',
+    type: 'link',
+    sourceDialKey: 'main',
+    sourceDialTitle: 'Main Landing Page',
+  },
+  {
     id: 'roster-x',
     title: 'Roster X App',
     url: 'https://rosterx-frontend.pages.dev/',
@@ -188,6 +219,16 @@ const MAIN_LINKS: DialLinkItem[] = [
     url: 'https://delivery-partner-portal.lufthansa.com/',
     domain: 'delivery-partner-portal.lufthansa.com',
     category: 'Medical Operations',
+    type: 'link',
+    sourceDialKey: 'main',
+    sourceDialTitle: 'Main Landing Page',
+  },
+  {
+    id: 'see-something-say-something',
+    title: 'See Something? Say Something!',
+    url: 'https://forms.cloud.microsoft/e/ddhA0NxALc',
+    domain: 'forms.cloud.microsoft',
+    category: 'Safety & Reporting',
     type: 'link',
     sourceDialKey: 'main',
     sourceDialTitle: 'Main Landing Page',
@@ -311,6 +352,16 @@ const OPS_LINKS: DialLinkItem[] = [
     sourceDialTitle: 'OPS Page DIAL',
   },
   {
+    id: 'ops-mesweb-telexes',
+    title: 'MesWeb LH Telexes',
+    url: 'https://mesweb.prd.weur.az.cloud.lhsystems.com/mesweb/MES/',
+    domain: 'lhsystems.com',
+    category: 'Operational Telexes',
+    type: 'link',
+    sourceDialKey: 'ops',
+    sourceDialTitle: 'OPS Page DIAL',
+  },
+  {
     id: 'ops-ramp-safety',
     title: 'Ramp Safety Film',
     url: 'https://youtu.be/uPpvNbSr5gk?si=NSrjtqx4QgkSrepc',
@@ -351,6 +402,26 @@ const LL_LINKS: DialLinkItem[] = [
     domain: 'Under Construction',
     category: 'Tracking App',
     type: 'disabled',
+    sourceDialKey: 'll',
+    sourceDialTitle: 'LL Page DIAL',
+  },
+  {
+    id: 'll-mybag-lufthansa',
+    title: 'My BAG.AERO Lufthansa Group',
+    url: 'https://mybag.aero/baggage/#/pax/lufthansa/en-gb/main-menu',
+    domain: 'mybag.aero',
+    category: 'LHG Baggage Portal',
+    type: 'link',
+    sourceDialKey: 'll',
+    sourceDialTitle: 'LL Page DIAL',
+  },
+  {
+    id: 'll-mybag-swiss',
+    title: 'My BAG.AERO SWISS',
+    url: 'https://mybag.aero/baggage/#/pax/swiss/en-gb/main-menu',
+    domain: 'mybag.aero',
+    category: 'SWISS Baggage Portal',
+    type: 'link',
     sourceDialKey: 'll',
     sourceDialTitle: 'LL Page DIAL',
   },
@@ -883,6 +954,60 @@ USA AQQ (Secure Flight): +49 69696 51003`,
   },
 ];
 
+// 8. M365 SHAREPOINT UPDATES DIAL (Sorted alphabetically in ascending order)
+const M365_LINKS: DialLinkItem[] = [
+  {
+    id: 'm365-flight-report',
+    title: 'Add new LHG Flight Report',
+    url: 'https://lufthansagroup.sharepoint.com/sites/DELSM/_layouts/15/listform.aspx?PageType=8&ListId=%7b98C08BA6-94E3-43E5-A9D7-BC38CDDE3ED8%7d&RootFolder=/sites/DELSM/Lists/DELSM%20Flight%20Reports%202026&Source=https%3a//lufthansagroup.sharepoint.com/sites/DELSM/Lists/DELSM%2520Flight%2520Reports%25202026/AllItems.aspx&ContentTypeId=0x0100F3F13A88D4A93949A5EA58DC67C8DD6E',
+    domain: 'lufthansagroup.sharepoint.com',
+    category: 'SharePoint Form',
+    type: 'link',
+    sourceDialKey: 'm365',
+    sourceDialTitle: 'M365 SharePoint Updates DIAL',
+  },
+  {
+    id: 'm365-monitoring',
+    title: 'Add new Monitoring',
+    url: 'https://lufthansagroup.sharepoint.com/sites/DELSM-SOLARSTORM/_layouts/15/listform.aspx?PageType=8&ListId=%7b8B09A7FF-DFEF-41E6-8693-93C4C6EF5857%7d&RootFolder=/sites/DELSM-SOLARSTORM/Lists/Monitoring%20and%20Quality%20Management&Source=https%3a//lufthansagroup.sharepoint.com/sites/DELSM-SOLARSTORM/Lists/Monitoring%2520and%2520Quality%2520Management/AllItems.aspx?viewid%3D94756416-74bb-4d2f-b344-fff8c6a0393a%26env%3DWebViewList&ContentTypeId=0x0100E3E5FCC6FB0A244E8C4F2531B29B2542003AA9712168246945A09B2A5999CF88B0',
+    domain: 'lufthansagroup.sharepoint.com',
+    category: 'SharePoint Form',
+    type: 'link',
+    sourceDialKey: 'm365',
+    sourceDialTitle: 'M365 SharePoint Updates DIAL',
+  },
+  {
+    id: 'm365-training-briefing',
+    title: 'Add new Training/Briefing',
+    url: 'https://lufthansagroup.sharepoint.com/sites/DELSM/_layouts/15/listform.aspx?PageType=8&ListId=%7bE9FABF8B-B801-4AF1-A278-B7D650C775F4%7d&RootFolder=/sites/DELSM/Lists/Trainings%20and%20Workshops&Source=https%3a//lufthansagroup.sharepoint.com/sites/DELSM/Lists/Trainings%2520and%2520Workshops/AllItems.aspx&ContentTypeId=0x01003B4F009246198945B93E10A5DA0920AA00C3B5F991093A2C419E97EF84656534E1',
+    domain: 'lufthansagroup.sharepoint.com',
+    category: 'SharePoint Form',
+    type: 'link',
+    sourceDialKey: 'm365',
+    sourceDialTitle: 'M365 SharePoint Updates DIAL',
+  },
+  {
+    id: 'm365-upg-points',
+    title: 'Add new UPG Points Data',
+    url: 'https://lufthansagroup.sharepoint.com/sites/OperationalMeetings-LHGOnlyChannel/_layouts/15/listform.aspx?PageType=8&ListId=%7BBCCB0816-87EF-441A-A4CD-5D9C345E9724%7D&RootFolder=%2Fsites%2FOperationalMeetings-LHGOnlyChannel%2FLists%2FVouchers%20Issuance&Source=https%3A%2F%2Flufthansagroup.sharepoint.com%2Fsites%2FOperationalMeetings-LHGOnlyChannel%2FLists%2FVouchers%2520Issuance%2FAllItems.aspx%3Fenv%3DWebViewList&ContentTypeId=0x0100B34133BEC2BC8543AFF0F78DD8D5A24D0011ECD4B30D1B084DBF3273FF872C2D19',
+    domain: 'lufthansagroup.sharepoint.com',
+    category: 'SharePoint Form',
+    type: 'link',
+    sourceDialKey: 'm365',
+    sourceDialTitle: 'M365 SharePoint Updates DIAL',
+  },
+  {
+    id: 'm365-back-to-main',
+    title: 'Back to Main DIAL',
+    domain: 'Navigate to main DIAL',
+    category: 'Navigation',
+    type: 'back',
+    targetDial: 'main',
+    sourceDialKey: 'm365',
+    sourceDialTitle: 'M365 SharePoint Updates DIAL',
+  },
+];
+
 const DIAL_DATA: Record<
   DialKey,
   { title: string; links: DialLinkItem[] }
@@ -915,6 +1040,10 @@ const DIAL_DATA: Record<
     title: 'LHG HUB Contacts',
     links: HUB_CONTACTS_LINKS,
   },
+  m365: {
+    title: 'M365 SharePoint Updates DIAL',
+    links: M365_LINKS,
+  },
 };
 
 // All search-eligible unique items across all dials (excluding back buttons)
@@ -926,6 +1055,7 @@ const ALL_SEARCHABLE_ITEMS: DialLinkItem[] = [
   ...LL_LINKS.filter((item) => item.type !== 'back'),
   ...HH_LINKS.filter((item) => item.type !== 'back'),
   ...HUB_CONTACTS_LINKS.filter((item) => item.type !== 'back'),
+  ...M365_LINKS.filter((item) => item.type !== 'back'),
 ];
 
 /**
@@ -1930,6 +2060,103 @@ export default function RotatingDial() {
   // Backward compatibility alias so all snap/step rotations call playDialSound
   const playMechanicalClick = playDialSound;
 
+  const quickSwitchRef = useRef<HTMLDivElement>(null);
+  const quickSwitchInnerRef = useRef<HTMLDivElement>(null);
+  const [boundaryBounce, setBoundaryBounce] = useState<'left' | 'right' | null>(null);
+  const boundaryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Rubber banding elastic feedback when reaching extreme left or right positions
+  const triggerRubberBand = useCallback(
+    (direction: 'left' | 'right') => {
+      const inner = quickSwitchInnerRef.current;
+
+      if (boundaryTimeoutRef.current) {
+        clearTimeout(boundaryTimeoutRef.current);
+      }
+      setBoundaryBounce(direction);
+      boundaryTimeoutRef.current = setTimeout(() => {
+        setBoundaryBounce(null);
+      }, 420);
+
+      // Tactile boundary haptic vibration
+      triggerHapticFeedback([28, 48, 28]);
+
+      // Sound feedback on reaching boundary
+      playDialSound(direction === 'left' ? 'up' : 'down');
+
+      // Native rubber band spring animation: elastic pull away from wall then rebound snapback
+      if (inner && typeof inner.animate === 'function') {
+        inner.animate(
+          direction === 'left'
+            ? [
+                { transform: 'translateX(0px)' },
+                { transform: 'translateX(32px)' },
+                { transform: 'translateX(-10px)' },
+                { transform: 'translateX(4px)' },
+                { transform: 'translateX(0px)' },
+              ]
+            : [
+                { transform: 'translateX(0px)' },
+                { transform: 'translateX(-32px)' },
+                { transform: 'translateX(10px)' },
+                { transform: 'translateX(-4px)' },
+                { transform: 'translateX(0px)' },
+              ],
+          {
+            duration: 440,
+            easing: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            fill: 'none',
+          }
+        );
+      }
+    },
+    [triggerHapticFeedback, playDialSound]
+  );
+
+  const scrollQuickSwitch = useCallback(
+    (direction: 'left' | 'right') => {
+      const el = quickSwitchRef.current;
+      if (!el) return;
+
+      const maxScrollLeft = Math.max(0, el.scrollWidth - el.clientWidth);
+
+      // Boundary check: already at extreme left and user clicks left
+      if (direction === 'left' && el.scrollLeft <= 3) {
+        triggerRubberBand('left');
+        return;
+      }
+
+      // Boundary check: already at extreme right and user clicks right
+      if (direction === 'right' && el.scrollLeft >= maxScrollLeft - 3) {
+        triggerRubberBand('right');
+        return;
+      }
+
+      const scrollAmount = 180;
+      const targetScroll =
+        direction === 'left'
+          ? Math.max(0, el.scrollLeft - scrollAmount)
+          : Math.min(maxScrollLeft, el.scrollLeft + scrollAmount);
+
+      el.scrollTo({
+        left: targetScroll,
+        behavior: 'smooth',
+      });
+      playDialSound(direction === 'left' ? 'up' : 'down');
+    },
+    [playDialSound, triggerRubberBand]
+  );
+
+  // Smoothly center the active dial button when switched
+  useEffect(() => {
+    if (quickSwitchRef.current) {
+      const activeBtn = quickSwitchRef.current.querySelector<HTMLElement>('[data-active-dial="true"]');
+      if (activeBtn) {
+        activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+  }, [activeDialKey]);
+
   // Cycle to next sound theme or set a specific theme - activates sound and ensures unmuted state
   const cycleSoundTheme = useCallback(
     (targetThemeId?: SoundThemeId, autoReturn = false) => {
@@ -2154,6 +2381,14 @@ export default function RotatingDial() {
         category: 'Page Navigation',
         type: 'dial',
         targetDial: 'hh',
+      },
+      {
+        id: 'return-m365',
+        title: 'Go to M365 SharePoint Updates DIAL',
+        domain: 'SharePoint Updates',
+        category: 'Page Navigation',
+        type: 'dial',
+        targetDial: 'm365',
       },
     ];
   }, []);
@@ -2832,7 +3067,7 @@ export default function RotatingDial() {
             if (activeDialKey !== 'main') switchDial('main');
           }}
           title="DELSM LaunchPad - Click to return to Main Dial"
-          className="relative w-full min-h-[62px] sm:min-h-[72px] rounded-xl overflow-hidden border border-sky-400/25 hover:border-sky-300/50 shadow-[0_8px_28px_rgba(0,18,50,0.7),0_0_20px_rgba(14,165,233,0.12)] bg-[#07132a] flex items-center justify-between px-3 sm:px-4 py-2 shrink-0 transition-all cursor-pointer group select-none"
+          className="relative w-full min-h-[44px] sm:min-h-[50px] rounded-xl overflow-hidden border border-sky-400/25 hover:border-sky-300/50 shadow-[0_8px_28px_rgba(0,18,50,0.7),0_0_20px_rgba(14,165,233,0.12)] bg-[#07132a] flex items-center justify-between px-2.5 sm:px-3.5 py-1 sm:py-1.5 shrink-0 transition-all cursor-pointer group select-none"
         >
           {/* Banner Graphic Background with smooth gradient fade */}
           <Image
@@ -2848,9 +3083,9 @@ export default function RotatingDial() {
           <div className="absolute inset-0 bg-gradient-to-r from-[#061226]/95 via-[#081a36]/85 to-[#040e1e]/75 pointer-events-none" />
 
           {/* Left: DELSM LaunchPad Emblem & Titles */}
-          <div className="relative z-10 flex items-center gap-2.5 sm:gap-4 min-w-0 flex-1 mr-2">
+          <div className="relative z-10 flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
             {/* DELSM LaunchPad Emblem SVG Badge */}
-            <div className="shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full relative flex items-center justify-center p-0.5 filter drop-shadow-[0_0_8px_rgba(56,189,248,0.45)]">
+            <div className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full relative flex items-center justify-center p-0.5 filter drop-shadow-[0_0_8px_rgba(56,189,248,0.45)]">
               <svg viewBox="0 0 100 100" className="w-full h-full">
                 <defs>
                   <radialGradient id="emblemGlow" cx="50%" cy="50%" r="50%">
@@ -2893,14 +3128,14 @@ export default function RotatingDial() {
             {/* Banner Titles */}
             <div className="flex flex-col min-w-0 justify-center">
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <h1 className="text-white font-black text-xs sm:text-base md:text-lg tracking-tight leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] truncate">
+                <h1 className="text-white font-black text-xs sm:text-sm md:text-base tracking-tight leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] truncate">
                   DELSM LaunchPad
                 </h1>
-                <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[8.5px] font-mono font-semibold uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-400/30 shrink-0">
+                <span className="hidden sm:inline-flex items-center px-1.5 py-0.2 rounded text-[8px] font-mono font-semibold uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-400/30 shrink-0">
                   Lufthansa Group
                 </span>
               </div>
-              <p className="text-sky-200/90 text-[10px] sm:text-[12px] font-medium tracking-tight truncate drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)] mt-0.5">
+              <p className="text-sky-200/90 text-[9px] sm:text-[11px] font-medium tracking-tight truncate drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)] mt-0.5">
                 DELSM Apps Drawer and important Links
               </p>
             </div>
@@ -2920,11 +3155,11 @@ export default function RotatingDial() {
                 setIsSoundSelectorOpen(true);
               }}
               title="Click to view all 10 Dial Sound Themes. (Double-click or hold volume button to quick switch)"
-              className="hidden md:flex px-2 py-1 rounded-lg text-[10px] font-mono font-medium bg-neutral-900/90 border border-amber-400/40 text-neutral-200 hover:border-amber-300 hover:text-amber-300 hover:bg-neutral-800 transition-all items-center gap-1 shadow-md backdrop-blur-md cursor-pointer select-none"
+              className="hidden md:flex px-2 py-0.5 rounded-lg text-[9.5px] font-mono font-medium bg-neutral-900/90 border border-amber-400/40 text-neutral-200 hover:border-amber-300 hover:text-amber-300 hover:bg-neutral-800 transition-all items-center gap-1 shadow-md backdrop-blur-md cursor-pointer select-none"
             >
               <span>{currentSoundTheme.icon}</span>
-              <span className="truncate max-w-[75px]">{currentSoundTheme.shortLabel}</span>
-              <span className="text-[8px] text-amber-400 font-bold">10 FX</span>
+              <span className="truncate max-w-[70px]">{currentSoundTheme.shortLabel}</span>
+              <span className="text-[7.5px] text-amber-400 font-bold">10 FX</span>
             </button>
 
             {/* 3D Tactile Volume Controller Button */}
@@ -2937,9 +3172,9 @@ export default function RotatingDial() {
               onTouchEnd={handleLoudspeakerTouchEnd}
               aria-label={!isMuted ? `Sound active: ${currentSoundTheme.name}. Click to mute, double-click or long-press to switch sound theme.` : 'Sound muted. Click to turn on.'}
               title={!isMuted ? `Sound: ON (${currentSoundTheme.name})\n• Click: Mute/Unmute\n• Double-click or Long-press: Change Sound Theme (10 FX)` : 'Sound: MUTED — Click to turn ON'}
-              className={`relative group flex items-center justify-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl shadow-[0_4px_0_#020b18,0_6px_14px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.3)] active:translate-y-[2px] active:shadow-[0_2px_0_#020b18,0_2px_6px_rgba(0,0,0,0.8)] border transition-all cursor-pointer select-none ${
+              className={`relative group flex items-center justify-center gap-1.5 px-2 py-1 sm:px-2.5 sm:py-1 rounded-xl shadow-[0_3px_0_#020b18,0_5px_12px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.3)] active:translate-y-[2px] active:shadow-[0_1px_0_#020b18,0_2px_4px_rgba(0,0,0,0.8)] border transition-all cursor-pointer select-none ${
                 !isMuted
-                  ? 'bg-gradient-to-b from-amber-500/25 via-amber-950/40 to-neutral-950 border-amber-400/70 shadow-[0_0_16px_rgba(245,158,11,0.35)] hover:border-amber-300'
+                  ? 'bg-gradient-to-b from-amber-500/25 via-amber-950/40 to-neutral-950 border-amber-400/70 shadow-[0_0_14px_rgba(245,158,11,0.35)] hover:border-amber-300'
                   : 'bg-gradient-to-b from-neutral-800 to-neutral-950 border-red-500/40 text-neutral-400 hover:border-red-400/60 hover:text-white'
               }`}
             >
@@ -2953,28 +3188,28 @@ export default function RotatingDial() {
 
               {/* Sound Icon */}
               {!isMuted ? (
-                <Volume2 className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.8)] group-hover:scale-110 transition-transform" />
+                <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.8)] group-hover:scale-110 transition-transform" />
               ) : (
-                <VolumeX className="w-4 h-4 sm:w-5 sm:h-5 text-neutral-400 group-hover:scale-110 group-hover:text-red-300 transition-transform" />
+                <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-neutral-400 group-hover:scale-110 group-hover:text-red-300 transition-transform" />
               )}
 
               {/* Sound state badge and theme indicator */}
               <div className="flex flex-col items-start leading-none">
                 <span
-                  className={`text-[9px] font-mono font-bold tracking-wider ${
+                  className={`text-[8.5px] font-mono font-bold tracking-wider ${
                     !isMuted ? 'text-emerald-300' : 'text-neutral-400'
                   }`}
                 >
                   {!isMuted ? 'ON' : 'MUTED'}
                 </span>
-                <span className="text-[8px] text-amber-400 font-mono mt-0.5">
+                <span className="text-[7.5px] text-amber-400 font-mono mt-0.5">
                   {currentSoundTheme.icon}
                 </span>
               </div>
 
               {/* Glowing Status Dot */}
               <span
-                className={`w-2 h-2 rounded-full border border-neutral-950 ml-0.5 ${
+                className={`w-1.5 h-1.5 rounded-full border border-neutral-950 ml-0.5 ${
                   !isMuted
                     ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]'
                     : 'bg-red-500/80 shadow-[0_0_4px_rgba(239,68,68,0.6)]'
@@ -2984,29 +3219,19 @@ export default function RotatingDial() {
           </div>
         </div>
 
-        {/* Floating Prompt Bar: Shown cleanly below banner when audio is MUTED */}
-        {isMuted && (
-          <div
-            onClick={handleLoudspeakerClick}
-            className="sound-prompt-pulse w-full max-w-sm p-2 rounded-xl bg-neutral-900/95 border border-amber-400/50 shadow-[0_8px_20px_rgba(0,0,0,0.8),0_0_16px_rgba(245,158,11,0.2)] flex items-center justify-between gap-2 cursor-pointer transition-all hover:border-amber-300"
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-base leading-none">🔊</span>
-              <p className="text-[11px] font-semibold text-amber-300 leading-tight">
-                Tap here to activate dial sound!
-              </p>
-            </div>
-            <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-400 text-neutral-950">
-              UNMUTE
-            </span>
-          </div>
-        )}
-
         {/* 3. Quick Switch DIAL Bar */}
-        <div className="w-full flex items-center justify-center sm:justify-end px-1 text-[11px] font-mono">
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-neutral-500 hidden sm:inline mr-1">Switch:</span>
-            {(['main', 'checklists', 'dgr', 'ops', 'll', 'hh', 'hub_contacts'] as DialKey[]).map((key) => {
+        <div
+          ref={quickSwitchRef}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          className="w-full min-h-[46px] sm:min-h-[40px] flex items-center justify-start px-2 sm:px-3 py-1.5 text-[12px] sm:text-[11px] font-mono overflow-x-auto scroll-smooth touch-pan-x overscroll-x-contain no-scrollbar rounded-xl bg-neutral-950/40 border border-white/5 backdrop-blur-sm"
+        >
+          <div ref={quickSwitchInnerRef} className="flex items-center gap-1.5 sm:gap-1 shrink-0 py-1 sm:py-0.5">
+            <span className="text-neutral-400 font-semibold text-[11px] uppercase tracking-wider hidden sm:inline mr-1 shrink-0">
+              Switch:
+            </span>
+            {(['main', 'checklists', 'dgr', 'ops', 'll', 'hh', 'hub_contacts', 'm365'] as DialKey[]).map((key) => {
               const isActive = activeDialKey === key && !isSearchActive;
               const labels: Record<DialKey, string> = {
                 main: 'Main',
@@ -3016,17 +3241,19 @@ export default function RotatingDial() {
                 ll: 'LL',
                 hh: 'H&H',
                 hub_contacts: 'Hub Contacts',
+                m365: 'M365 Updates',
               };
 
               return (
                 <button
                   key={key}
                   type="button"
+                  data-active-dial={isActive ? 'true' : 'false'}
                   onClick={() => switchDial(key)}
-                  className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+                  className={`px-3 py-2 sm:px-2.5 sm:py-1 rounded-lg text-[12px] sm:text-[11px] font-medium min-h-[36px] sm:min-h-[28px] flex items-center justify-center shrink-0 transition-all cursor-pointer touch-auto select-none ${
                     isActive
-                      ? 'bg-white/20 text-white border border-white/30'
-                      : 'text-neutral-400 hover:text-white hover:bg-white/10'
+                      ? 'bg-sky-500/25 text-white border border-sky-400/40 shadow-[0_0_8px_rgba(56,189,248,0.25)] font-semibold'
+                      : 'bg-white/5 text-neutral-300 border border-white/10 hover:text-white hover:bg-white/15 active:bg-white/20'
                   }`}
                   title={`Open ${DIAL_DATA[key].title}`}
                 >
@@ -3035,6 +3262,74 @@ export default function RotatingDial() {
               );
             })}
           </div>
+        </div>
+
+        {/* 4. Center Audio & Horizontal Navigation Bar with Left & Right Scroll Chevrons */}
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          className="w-full max-w-sm sm:max-w-md mx-auto flex items-center justify-between gap-2 px-1"
+        >
+          {/* Left Scroll Chevron to Navigate Horizontally */}
+          <button
+            type="button"
+            onClick={() => scrollQuickSwitch('left')}
+            aria-label="Scroll left to see more dials"
+            title="Navigate dials left"
+            className={`h-9 w-9 sm:h-8 sm:w-8 rounded-xl bg-neutral-900/95 hover:bg-neutral-800 active:bg-neutral-700 text-amber-400 hover:text-amber-300 border shadow-[0_2px_10px_rgba(0,0,0,0.5)] flex items-center justify-center shrink-0 transition-all cursor-pointer ${
+              boundaryBounce === 'left'
+                ? 'border-amber-300 scale-90 ring-2 ring-amber-400/70 shadow-[0_0_12px_rgba(245,158,11,0.6)]'
+                : 'border-amber-400/40 hover:border-amber-400 active:scale-95'
+            }`}
+          >
+            <ChevronLeft className="w-5 h-5 sm:w-4 sm:h-4" />
+          </button>
+
+          {/* Centered Sound Activation / Status Bar */}
+          <div
+            onClick={handleLoudspeakerClick}
+            className={`flex-1 p-2 sm:py-1.5 sm:px-3 rounded-xl border shadow-[0_4px_16px_rgba(0,0,0,0.6)] flex items-center justify-between gap-2 cursor-pointer transition-all ${
+              isMuted
+                ? 'sound-prompt-pulse bg-neutral-900/95 border-amber-400/60 hover:border-amber-300 shadow-[0_0_16px_rgba(245,158,11,0.25)]'
+                : 'bg-neutral-900/80 border-emerald-500/40 hover:border-emerald-400'
+            }`}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-base leading-none shrink-0">{isMuted ? '🔊' : '🔉'}</span>
+              <p
+                className={`text-[11px] font-semibold leading-tight truncate ${
+                  isMuted ? 'text-amber-300' : 'text-emerald-300'
+                }`}
+              >
+                {isMuted ? 'Tap here to activate dial sound!' : 'Dial sound active • Tap to mute'}
+              </p>
+            </div>
+            <span
+              className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold shrink-0 ${
+                isMuted
+                  ? 'bg-amber-400 text-neutral-950 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
+                  : 'bg-emerald-400/20 text-emerald-300 border border-emerald-400/30'
+              }`}
+            >
+              {isMuted ? 'UNMUTE' : 'MUTE'}
+            </span>
+          </div>
+
+          {/* Right Scroll Chevron to Navigate Horizontally */}
+          <button
+            type="button"
+            onClick={() => scrollQuickSwitch('right')}
+            aria-label="Scroll right to see more dials"
+            title="Navigate dials right"
+            className={`h-9 w-9 sm:h-8 sm:w-8 rounded-xl bg-neutral-900/95 hover:bg-neutral-800 active:bg-neutral-700 text-amber-400 hover:text-amber-300 border shadow-[0_2px_10px_rgba(0,0,0,0.5)] flex items-center justify-center shrink-0 transition-all cursor-pointer ${
+              boundaryBounce === 'right'
+                ? 'border-amber-300 scale-90 ring-2 ring-amber-400/70 shadow-[0_0_12px_rgba(245,158,11,0.6)]'
+                : 'border-amber-400/40 hover:border-amber-400 active:scale-95'
+            }`}
+          >
+            <ChevronRight className="w-5 h-5 sm:w-4 sm:h-4" />
+          </button>
         </div>
       </header>
 
