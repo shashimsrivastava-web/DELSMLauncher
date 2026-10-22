@@ -99,6 +99,16 @@ const MAIN_LINKS: DialLinkItem[] = [
     sourceDialTitle: 'Main Landing Page',
   },
   {
+    id: 'feedback-learning-development',
+    title: 'Feedback re Learning and Development',
+    url: 'https://forms.cloud.microsoft/e/GF0PJXMehv',
+    domain: 'forms.cloud.microsoft',
+    category: 'Feedback',
+    type: 'link',
+    sourceDialKey: 'main',
+    sourceDialTitle: 'Main Landing Page',
+  },
+  {
     id: 'ginger-lh-meal-ordering',
     title: 'Ginger LH Meal Ordering',
     url: 'https://ginger.lufthansagroup.com/',
